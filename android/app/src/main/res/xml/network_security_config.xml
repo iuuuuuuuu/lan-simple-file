@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!--
+  明文 HTTP 的放行范围。
+
+  计划里 v1 明确是「明文 HTTP + token」（docs/plan.md $9 加密一栏），
+  但绝不允许全局 usesCleartextTraffic="true" —— 那等于对任意公网域名都放开明文。
+
+  必须说清的三件事（否则这份配置会骗人）：
+
+  1. Android 的 network-security-config **不支持 CIDR 网段**。
+     <domain> 只接受精确主机名或域名，写 192.168.0.0/16 是无效的，
+     只会被当成一个叫这个名字的主机。所以「只对局域网段放行」
+     无法在本文件里用网段表达，这里只放行回环地址（精确可表达）。
+
+  2. Flutter 的 dart:io（HttpServer / HttpClient / Socket）走的是自己的 BSD socket
+     实现，**不经过 Android 的 java.net 栈**，因此本条 NSC 对 Dart 侧的网络
+     完全不生效。NSC 管的是 Java/WebView/OkHttp 那一路。
+
+  3. base-config 保持 false 是安全的：Dart 侧的局域网明文通信不受它影响，
+     它只会在万一有人从 Java/WebView 发起公网明文请求时拦下来。
+
+  → 「局域网内才允许明文」的真正闸门必须在 Dart 侧做（校验对端地址落在
+     10/8、172.16/12、192.168/16、169.254/16、127/8 之内），
+     这不在本文件范围内，已在交付报告里列为待接线项。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 回环：App 连自己的 HTTP 服务（127.0.0.1:47778）。精确主机名，可表达。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

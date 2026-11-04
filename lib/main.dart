@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
+/// 应用入口：真实装配服务栈并启动外壳。
+///
+/// 装配失败（端口被占满、数据库损坏、身份文件损坏）不静默降级：
+/// 直接把错误展示出来，否则用户只会看到「附近的人一直空着」。
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+
+import 'dart:io';
+
+import 'app/app.dart';
+import 'app/assembly.dart';
+import 'core/platform/default_nickname.dart';
+import 'ui/shell/custom_title_bar.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 桌面端改成无边框窗口 + 自绘标题栏：系统标题栏是最强的「工具软件」信号。
+  // Android 不进入这个分支（条件导入的 stub 会直接返回）。
+  await initDesktopWindow();
+
+  final String dataDirPath =
+      (await getApplicationSupportDirectory()).path;
+
+  try {
+    // enableDiscovery 打开后本机会真实广播；离线环境（无网卡）会降级为只发不收，
+    // 由 AnnounceService.degradedReason 暴露原因，不阻断启动。
+    final AppServices services = await AppAssembler.assemble(
+      dataDir: Directory(dataDirPath),
+      // 默认昵称取登录账户名（不是主机名）：机器名区分不了「谁」。
+      name: resolveDefaultNickname(),
+      enableLocalDomains: true,
+    );
+    runApp(
+      ProviderScope(
+        child: LanFileApp(
+          services: services,
+        ),
+      ),
+    );
+  } catch (error, stack) {
+    runApp(_StartupFailureApp(error: error, stack: stack));
+  }
+}
+
+/// 装配失败时的降级界面：把原因说清楚，而不是白屏或假成功。
+class _StartupFailureApp extends StatelessWidget {
+  const _StartupFailureApp({required this.error, required this.stack});
+
+  final Object error;
+  final StackTrace stack;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '启动失败',
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                '启动失败',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text('服务没能装配起来。这通常意味着端口被占满、数据库损坏，或身份文件损坏。'),
+              const SizedBox(height: 16),
+              SelectableText(
+                error.toString(),
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                stack.toString().split('\n').take(6).join('\n'),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

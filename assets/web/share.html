@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="zh-CN" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>__LSF_SHARE_OWNER_NAME__ 分享 · __LSF_SHARE_NAME__</title>
+    <meta property="og:title" content="__LSF_SHARE_NAME__" />
+    <meta property="og:description" content="__LSF_SHARE_OWNER_NAME__ 分享的文件" />
+    <meta property="og:image" content="__LSF_SHARE_OWNER_AVATAR__" />
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body data-share-id="__LSF_SHARE_ID__" data-share-peer="__LSF_SHARE_PEER__">
+    <main class="shell">
+      <header class="bar">
+        <span class="dot" id="dot" aria-hidden="true"></span>
+        <h1 class="title" id="share-name">__LSF_SHARE_NAME__</h1>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换明暗主题">
+          <span id="theme-label">跟随系统</span>
+        </button>
+      </header>
+
+      <div class="share-owner">
+        <img class="share-owner-avatar" src="__LSF_SHARE_OWNER_AVATAR__" alt="分享者头像" />
+        <span class="share-owner-name">__LSF_SHARE_OWNER_NAME__</span>
+      </div>
+
+      <nav class="crumbs" id="crumbs" aria-label="路径"></nav>
+
+      <section class="card">
+        <div class="toolbar">
+          <a class="btn btn-primary" id="download-zip" href="#">打包下载本目录</a>
+          <button class="btn" id="refresh" type="button">刷新</button>
+        </div>
+        <p class="hint" id="status">正在读取目录…</p>
+      </section>
+
+      <section class="card" id="list-card" hidden>
+        <ul class="entries" id="entries"></ul>
+        <div class="more" id="more-row" hidden>
+          <button class="btn" id="load-more" type="button">加载更多</button>
+        </div>
+      </section>
+
+      <section class="card guide">
+        <h2 class="guide-title">用客户端接收更快</h2>
+        <p class="hint">
+          浏览器适合临时取件。要在设备间直传、断点续传与后台收文件，
+          请在本机安装 lan-simple-file 客户端。Windows 下载后解压，运行客户端即可。
+        </p>
+        <p class="toolbar">
+          <a class="btn btn-primary" id="download-client" href="/client/download/windows" download>下载 Windows 客户端</a>
+          <a class="btn" id="guide-link" href="/web/index.html">查看说明</a>
+        </p>
+      </section>
+
+      <footer class="foot">
+        <span>GPL-3.0-only</span>
+        <span>局域网内无中心共享</span>
+      </footer>
+    </main>
+    <script src="/web/share.js" defer></script>
+  </body>
+</html>

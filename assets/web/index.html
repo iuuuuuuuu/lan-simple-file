@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="zh-CN" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>lan-simple-file</title>
+    <link rel="stylesheet" href="/web/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="bar">
+        <span class="dot" id="dot" aria-hidden="true"></span>
+        <h1 class="title">lan-simple-file</h1>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换明暗主题">
+          <span id="theme-label">跟随系统</span>
+        </button>
+      </header>
+
+      <section class="card">
+        <p class="row"><span class="k">本机</span><span class="v" id="self-name">…</span></p>
+        <p class="row"><span class="k">身份</span><span class="v mono" id="self-id">…</span></p>
+        <p class="row"><span class="k">协议</span><span class="v mono" id="self-proto">…</span></p>
+      </section>
+
+      <section class="card">
+        <p class="hint" id="status">正在连接本机节点…</p>
+      </section>
+
+      <footer class="foot">
+        <span>GPL-3.0-only</span>
+        <span>局域网内无中心共享</span>
+      </footer>
+    </main>
+    <script src="/web/app.js" defer></script>
+  </body>
+</html>
