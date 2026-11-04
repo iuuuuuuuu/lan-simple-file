@@ -134,7 +134,8 @@
 ```
 alive=True hasWindow=True
 PORT=47778 STATUS=200
-BODY={"peerId":"p_jpzsvuhxef46s","name":"公司电脑-M600","proto":2}
+# 公开记录中的设备标识与昵称已脱敏
+BODY={"peerId":"<本机peerId>","name":"<本机名称>","proto":2}
 ```
 即：应用真的起来了、真的绑上了 47778、真的响应了 API，peerId 是真实派生的。
 
