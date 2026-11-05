@@ -118,6 +118,14 @@ jobs:
           flutter-version: ${{ env.FLUTTER_REVISION }}
           cache: true
       - run: flutter pub get
+      - name: Generate release plugin registration
+        run: |
+          flutter build apk --release --config-only
+          if grep -Fq 'dev.flutter.plugins.integration_test' android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+          then
+            echo 'Release registration must not include the integration test plugin.'
+            exit 1
+          fi
       - name: Build signed APKs
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -130,7 +138,8 @@ jobs:
           export LAN_SIMPLE_FILE_KEYSTORE="$RUNNER_TEMP/release-keystore.p12"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$LAN_SIMPLE_FILE_KEYSTORE"
           chmod 600 "$LAN_SIMPLE_FILE_KEYSTORE"
-          flutter build apk --release --split-per-abi --no-pub
+          # --no-pub also skips release plugin registration in this Flutter SDK.
+          flutter build apk --release --split-per-abi
       - name: Verify signatures, versions and architectures
         run: |
           version="${RELEASE_TAG#v}"
