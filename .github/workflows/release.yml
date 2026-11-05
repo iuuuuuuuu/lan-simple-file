@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ env.RELEASE_TAG }}
+      - name: Allow long Flutter source paths on Windows
+        run: git config --global core.longpaths true
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: main
@@ -61,6 +63,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ env.RELEASE_TAG }}
+      - name: Allow long Flutter source paths on Windows
+        run: git config --global core.longpaths true
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: main
