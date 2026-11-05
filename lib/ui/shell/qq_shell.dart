@@ -519,6 +519,7 @@ class _QqShellState extends State<QqShell> {
 
   bool _uploading = false;
   bool _choosingUpload = false;
+  int _sharesRevision = 0;
   Future<void> _uploadFiles() async {
     if (_uploading || _choosingUpload || widget.services == null) return;
     setState(() => _choosingUpload = true);
@@ -536,6 +537,7 @@ class _QqShellState extends State<QqShell> {
         ),
       };
       if (!mounted || shares.isEmpty) return;
+      setState(() => _sharesRevision++);
       if (_selectedSession != null && _sectionWantsList(_section)) {
         final row = _selectedSession!;
         final self = widget.services!.identity.peerId;
@@ -641,7 +643,11 @@ class _QqShellState extends State<QqShell> {
     final Widget dropped = DropShareOverlay(
       enableDragDrop:
           widget.enableDragDrop && !(needsList && _selectedRowId != null),
-      handler: widget.dropHandler,
+      handler:
+          widget.dropHandler ??
+          (widget.services == null
+              ? null
+              : ServiceDropShareHandler(create: widget.services!.sharePath)),
       onResult: (int created, int total) {
         if (!mounted) return;
         // 失败时必须带上**第一条具体原因**：只报「N 个失败」，用户无法判断
@@ -656,8 +662,10 @@ class _QqShellState extends State<QqShell> {
             : '：${failures.first.shortName} — ${failures.first.message}';
         // 浮层提示：不顶走布局，也不在顶部条常驻。
         AppToast.show(context, base + detail, isError: created != total);
-        _reloadRows();
-        setState(() {});
+        setState(() {
+          if (created > 0) _sharesRevision++;
+          _reloadRows();
+        });
       },
       child: body,
     );
@@ -894,7 +902,10 @@ class _QqShellState extends State<QqShell> {
           shareLinkResolver: widget.services?.buildPeerWebLink,
         );
       case ShellSection.shares:
-        return SharesPage(services: widget.services);
+        return SharesPage(
+          services: widget.services,
+          refreshRevision: _sharesRevision,
+        );
       case ShellSection.transfers:
         return const _PlaceholderContent(
           icon: Icons.swap_vert_circle_outlined,

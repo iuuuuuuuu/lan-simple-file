@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/net/lan_address.dart';
@@ -64,9 +66,9 @@ void main() {
     expect(uri.queryParameters['k'], 'signed-token');
   });
 
-  test('未知代理状态和已绕过 local 时仍保留原域名', () async {
+  test('未知代理状态回退 IP，已绕过 local 时保留原域名', () async {
     final unknown = BrowserLinkPolicy(proxyQuery: () async => null);
-    expect(await unknown.domainFor('alice.local'), 'alice.local');
+    expect(await unknown.domainFor('alice.local'), isNull);
     final bypassed = BrowserLinkPolicy(
       proxyQuery: () async => const WindowsBrowserProxy(
         enabled: true,
@@ -76,5 +78,23 @@ void main() {
     );
     expect(await bypassed.domainFor('alice.local'), 'alice.local');
     expect(await bypassed.domainFor(null), isNull);
+  });
+
+  test('代理查询抛错时仍能生成 IP 链接', () async {
+    final policy = BrowserLinkPolicy(
+      proxyQuery: () async =>
+          throw const ProcessException('powershell.exe', []),
+    );
+    expect(await policy.domainFor('alice.local'), isNull);
+  });
+
+  test('PAC 规则未知时不把 local 链接交给浏览器代理', () async {
+    const proxy = WindowsBrowserProxy(
+      enabled: false,
+      server: '',
+      bypass: '',
+      autoConfigUrl: 'http://127.0.0.1:7890/proxy.pac',
+    );
+    expect(proxy.usesProxyFor('alice.local'), isTrue);
   });
 }

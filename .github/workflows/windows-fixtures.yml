@@ -1,0 +1,35 @@
+name: Windows File Fixtures
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - test/core/files/local_ref_test.dart
+      - test/core/net/local_domain_test.dart
+      - test/core/platform/browser_link_policy_test.dart
+      - test/ui/desktop_share_drop_test.dart
+      - lib/core/platform/browser_link_policy.dart
+      - lib/ui/pages/shares_page.dart
+      - lib/ui/shell/qq_shell.dart
+      - .github/workflows/windows-fixtures.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: git config --global core.longpaths true
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: main
+          flutter-version: '6a19cca56475dbfba1478ee68d7bd0c2ef891da1'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - name: Verify file fixtures, desktop drops and browser proxy policy
+        run: flutter test --no-pub test/core/files/local_ref_test.dart test/core/net/local_domain_test.dart test/core/platform/browser_link_policy_test.dart test/ui/desktop_share_drop_test.dart

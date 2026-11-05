@@ -196,6 +196,7 @@ class SharesPage extends StatefulWidget {
     this.now,
     this.onDownload,
     this.onReveal,
+    this.refreshRevision = 0,
   });
 
   /// 装配好的服务栈。
@@ -216,6 +217,8 @@ class SharesPage extends StatefulWidget {
   /// 「打开文件所在位置」；由装配层接系统文件管理器。
   /// 为 null 时文件行不显示定位按钮（不制造点了没反应的入口）。
   final void Function(TreeEntryView entry)? onReveal;
+
+  final int refreshRevision;
 
   @override
   State<SharesPage> createState() => _SharesPageState();
@@ -264,6 +267,14 @@ class _SharesPageState extends State<SharesPage> {
     final MySharesSource? source = _source;
     if (source == null) return const <ShareRecord>[];
     return source.listMine();
+  }
+
+  @override
+  void didUpdateWidget(covariant SharesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshRevision != widget.refreshRevision) {
+      _future = _load();
+    }
   }
 
   Future<void> _reload() async {
@@ -481,7 +492,8 @@ class _SharesPageState extends State<SharesPage> {
     return FutureBuilder<List<ShareRecord>>(
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<List<ShareRecord>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {

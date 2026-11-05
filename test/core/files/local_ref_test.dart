@@ -413,21 +413,35 @@ void main() {
         return;
       }
       final File f = File(p.join(rootPath, 'sparse.bin'))..createSync();
-      final sparse = await Process.run('fsutil.exe', [
-        'sparse',
-        'setflag',
-        f.path,
-      ]);
-      expect(
-        sparse.exitCode,
-        0,
-        reason: '${sparse.stdout}${sparse.stderr}',
-      );
       final RandomAccessFile raf = f.openSync(mode: FileMode.write);
-      raf.truncateSync(5 * 1024 * 1024 * 1024 + 16);
-      raf.setPositionSync(5 * 1024 * 1024 * 1024);
-      raf.writeFromSync(<int>[1, 2, 3, 4, 5, 6, 7, 8]);
-      raf.closeSync();
+      try {
+        // Opening in write mode clears the sparse flag on Windows.
+        final sparse = await Process.run('fsutil.exe', [
+          'sparse',
+          'setflag',
+          f.path,
+        ]);
+        expect(
+          sparse.exitCode,
+          0,
+          reason: '${sparse.stdout}${sparse.stderr}',
+        );
+        final attributes = await Process.run('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-WindowStyle',
+          'Hidden',
+          '-Command',
+          "[int][System.IO.File]::GetAttributes('${f.path.replaceAll("'", "''")}')",
+        ]);
+        expect(attributes.exitCode, 0, reason: '${attributes.stderr}');
+        expect(int.parse(attributes.stdout.toString().trim()) & 512, 512);
+        raf.truncateSync(5 * 1024 * 1024 * 1024 + 16);
+        raf.setPositionSync(5 * 1024 * 1024 * 1024);
+        raf.writeFromSync(<int>[1, 2, 3, 4, 5, 6, 7, 8]);
+      } finally {
+        raf.closeSync();
+      }
 
       final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'sparse.bin');
       expect(await ref.length(), 5 * 1024 * 1024 * 1024 + 16);

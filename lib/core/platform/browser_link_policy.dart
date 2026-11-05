@@ -8,13 +8,17 @@ class WindowsBrowserProxy {
     required this.enabled,
     required this.server,
     required this.bypass,
+    this.autoConfigUrl = '',
   });
 
   final bool enabled;
   final String server;
   final String bypass;
+  final String autoConfigUrl;
 
   bool usesProxyFor(String host) {
+    // PAC decisions cannot be inferred from the manual proxy bypass list.
+    if (autoConfigUrl.trim().isNotEmpty) return true;
     if (!enabled || server.trim().isEmpty) return false;
     final httpProxy = server
         .split(';')
@@ -66,7 +70,7 @@ Future<WindowsBrowserProxy?> _readProxy() async {
       '-WindowStyle',
       'Hidden',
       '-Command',
-      r"Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop | Select-Object ProxyEnable,ProxyServer,ProxyOverride | ConvertTo-Json -Compress",
+      r"Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop | Select-Object ProxyEnable,ProxyServer,ProxyOverride,AutoConfigURL | ConvertTo-Json -Compress",
     ]).timeout(const Duration(seconds: 3));
     if (result.exitCode != 0) return null;
     final data = jsonDecode(result.stdout.toString()) as Map<String, dynamic>;
@@ -74,6 +78,7 @@ Future<WindowsBrowserProxy?> _readProxy() async {
       enabled: data['ProxyEnable'] == 1,
       server: data['ProxyServer'] as String? ?? '',
       bypass: data['ProxyOverride'] as String? ?? '',
+      autoConfigUrl: data['AutoConfigURL'] as String? ?? '',
     );
   } on Object {
     return null;
@@ -88,7 +93,12 @@ class BrowserLinkPolicy {
 
   Future<String?> domainFor(String? domain) async {
     if (domain == null) return null;
-    final proxy = await proxyQuery();
-    return proxy?.usesProxyFor(domain) == true ? null : domain;
+    try {
+      final proxy = await proxyQuery();
+      // An unreadable configuration is not evidence that mDNS bypasses a proxy.
+      return proxy == null || proxy.usesProxyFor(domain) ? null : domain;
+    } on Object {
+      return null;
+    }
   }
 }
