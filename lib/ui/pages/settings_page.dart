@@ -47,7 +47,7 @@ const int kNicknameMaxLength = 64;
 const String kAppName = '局域网简易文件';
 
 /// 版本号（M0–M7 全部落地）。
-const String kAppVersion = '0.1.0-beta.2';
+const String kAppVersion = '0.1.0-beta.3';
 
 /// 许可标识。
 const String kAppLicense = 'GPL-3.0-only';

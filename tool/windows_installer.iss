@@ -5,7 +5,7 @@
   #error OutputDir is required
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.0-beta.2"
+  #define AppVersion "0.1.0-beta.3"
 #endif
 
 [Setup]

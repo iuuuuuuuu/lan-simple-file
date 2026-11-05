@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.1.0-beta.2
+## 0.1.0-beta.3
 
 Windows x64 与 Android beta。
+
+beta.2 标签仅用于未通过的流水线验证，未公开发布安装包。
 
 - 提供 Windows 当前用户安装程序、开始菜单与卸载入口，网页可下载安装程序。
 - Windows 设置页支持开机自动启动，默认关闭。

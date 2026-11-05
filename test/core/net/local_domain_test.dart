@@ -26,7 +26,8 @@ void main() {
     expect(script, contains('Profiles = 3'));
     if (Platform.isWindows) {
       final file = File('build/enable-local-domain.ps1');
-      await file.writeAsString(script);
+      // Windows PowerShell 5.1 otherwise decodes UTF-8 as the system code page.
+      await file.writeAsString('\ufeff$script');
       final result = await Process.run('powershell.exe', [
         '-NoProfile',
         '-NonInteractive',

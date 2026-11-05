@@ -412,7 +412,17 @@ void main() {
         markTestSkipped('稀疏大文件用例只在 Windows/NTFS 上跑');
         return;
       }
-      final File f = File(p.join(rootPath, 'sparse.bin'));
+      final File f = File(p.join(rootPath, 'sparse.bin'))..createSync();
+      final sparse = await Process.run('fsutil.exe', [
+        'sparse',
+        'setflag',
+        f.path,
+      ]);
+      expect(
+        sparse.exitCode,
+        0,
+        reason: '${sparse.stdout}${sparse.stderr}',
+      );
       final RandomAccessFile raf = f.openSync(mode: FileMode.write);
       raf.truncateSync(5 * 1024 * 1024 * 1024 + 16);
       raf.setPositionSync(5 * 1024 * 1024 * 1024);
