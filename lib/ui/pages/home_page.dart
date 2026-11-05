@@ -8,6 +8,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/assembly.dart';
@@ -100,39 +104,58 @@ class _HomePageState extends ConsumerState<HomePage> {
         Theme.of(context).extension<LanFileTokens>() ??
         LanFilePalette.of(Theme.of(context).brightness);
 
-    return Scaffold(
-      backgroundColor: tokens.bg,
-      body: Column(
-        children: <Widget>[
-          // 自绘标题栏：替掉系统那条（系统标题栏是最强烈的「工具软件」信号）。
-          // 主题切换放在它的右侧 actions 区。
-          CustomTitleBar(
-            title: '局域网简易文件',
-            trailing: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[_ThemeModeButton(), SizedBox(width: 6)],
-            ),
+    final mobile = Platform.isAndroid || MediaQuery.sizeOf(context).width < 600;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: tokens.isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: tokens.isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemStatusBarContrastEnforced: false,
+        systemNavigationBarContrastEnforced: false,
+      ),
+      child: Scaffold(
+        backgroundColor: tokens.bg,
+        body: SafeArea(
+          top: !mobile,
+          child: Column(
+            children: <Widget>[
+              // 自绘标题栏：替掉系统那条（系统标题栏是最强烈的「工具软件」信号）。
+              // 主题切换放在它的右侧 actions 区。
+              if (!mobile)
+                CustomTitleBar(
+                  title: '局域网简易文件',
+                  trailing: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[_ThemeModeButton(), SizedBox(width: 6)],
+                  ),
+                ),
+              Expanded(
+                child: QqShell(
+                  services: widget.services,
+                  sessionSource: widget.sessionSource,
+                  enableDragDrop: widget.enableDragDrop && !Platform.isAndroid,
+                  // 没注入 handler 时，从真实服务栈造一个。
+                  // 之前这里一直是 null，导致拖入必定「0 个共享，1 个失败」——
+                  // 那是功能缺失，不是用户操作问题。
+                  dropHandler:
+                      widget.dropHandler ??
+                      (widget.services == null
+                          ? null
+                          : ServiceDropShareHandler(
+                              create: widget.services!.sharePath,
+                            )),
+                  initialSection: widget.initialTab.section,
+                  currentUserName: widget.currentUserName,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: QqShell(
-              services: widget.services,
-              sessionSource: widget.sessionSource,
-              enableDragDrop: widget.enableDragDrop,
-              // 没注入 handler 时，从真实服务栈造一个。
-              // 之前这里一直是 null，导致拖入必定「0 个共享，1 个失败」——
-              // 那是功能缺失，不是用户操作问题。
-              dropHandler:
-                  widget.dropHandler ??
-                  (widget.services == null
-                      ? null
-                      : ServiceDropShareHandler(
-                          create: widget.services!.sharePath,
-                        )),
-              initialSection: widget.initialTab.section,
-              currentUserName: widget.currentUserName,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

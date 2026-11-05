@@ -57,7 +57,7 @@ final class TrackedPeer {
     online: liveness == PeerLiveness.online,
     shareCount: packet.shareCount,
     lastSeen: lastSeen,
-    os: os,
+    os: os ?? packet.operatingSystem,
   );
 
   TrackedPeer copyWith({

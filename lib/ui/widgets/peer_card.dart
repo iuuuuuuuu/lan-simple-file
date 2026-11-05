@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
 import '../../core/contracts/contracts.dart';
+import 'device_platform_label.dart';
 
 /// 在线状态点的两种形态。
 enum PeerDotStyle {
@@ -78,15 +79,25 @@ class PeerCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        peer.name.isEmpty ? peer.peerId.value : peer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.fg,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              peer.name.isEmpty ? peer.peerId.value : peer.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: tokens.fg,
+                              ),
+                            ),
+                          ),
+                          if (peer.os?.isNotEmpty == true) ...[
+                            const SizedBox(width: 6),
+                            DevicePlatformLabel(os: peer.os!),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -124,8 +135,6 @@ class PeerCard extends StatelessWidget {
     } else {
       parts.add('暂无共享');
     }
-    final String? os = peer.os;
-    if (os != null && os.isNotEmpty) parts.add(os);
     return parts.join(' · ');
   }
 }

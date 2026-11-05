@@ -9,3 +9,5 @@
 # 串行后每个文件独占真实网络，结果确定。不要为了跑得快把 concurrency 调高：
 # 那样会重新引入串包，表现为「随机某条 e2e 红」，非常难查。
 concurrency: 1
+tags:
+  golden:

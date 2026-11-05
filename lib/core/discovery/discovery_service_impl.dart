@@ -23,6 +23,8 @@ final class DiscoveryServiceImpl
     this.nameResolver,
     this.shareCountReader,
     this.avatarHashReader,
+    this.osReader,
+    this.directProbe,
   });
 
   final AnnounceService announce;
@@ -35,6 +37,12 @@ final class DiscoveryServiceImpl
   /// 读某人分享数量；为 null 时用公告里的 shareCount。
   final Future<int?> Function(PeerId peer)? shareCountReader;
   final Future<String?> Function(PeerId peer)? avatarHashReader;
+  final Future<String?> Function(PeerId peer)? osReader;
+  final Future<void> Function(String host, int port)? directProbe;
+  final Map<PeerId, ({String host, int port})> _directEndpoints = {};
+  void rememberDirectEndpoint(PeerId peer, String host, int port) {
+    _directEndpoints[peer] = (host: host, port: port);
+  }
 
   final StreamController<List<PeerView>> _watch =
       StreamController<List<PeerView>>.broadcast();
@@ -92,7 +100,11 @@ final class DiscoveryServiceImpl
   Future<void> addByAddress(String host, int port) async {
     // 手动添加走一次主动探测；真正的定向 contact 属发现层能力，
     // 这里至少要让调用方看到「已请求」，而不是静默空转。
-    await announce.probe();
+    final probe = directProbe;
+    if (probe == null) {
+      throw const LanFileException(LanFileErrorCode.unsupported, '直接发现未连接');
+    }
+    await probe(host, port);
   }
 
   /// 网关用：把在线对端解析成可连接地址。
@@ -115,6 +127,8 @@ final class DiscoveryServiceImpl
     if (tracked.liveness != PeerLiveness.online) {
       return null;
     }
+    final direct = _directEndpoints[peer];
+    if (direct != null) return direct;
     final AnnouncePacket packet = tracked.packet;
     if (packet.ip.isEmpty || packet.port <= 0) {
       return null;
@@ -136,6 +150,7 @@ final class DiscoveryServiceImpl
         online: true,
         shareCount: await shareCountReader?.call(identity.peerId) ?? 0,
         lastSeen: DateTime.now(),
+        os: await osReader?.call(identity.peerId),
       ),
     );
     for (final TrackedPeer p in tracker.peers) {
@@ -152,6 +167,7 @@ final class DiscoveryServiceImpl
           online: p.liveness == PeerLiveness.online,
           shareCount: await shareCountReader?.call(pid) ?? p.packet.shareCount,
           lastSeen: p.lastSeen,
+          os: p.packet.operatingSystem ?? await osReader?.call(pid),
         ),
       );
     }

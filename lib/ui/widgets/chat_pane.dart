@@ -27,6 +27,8 @@ class ChatPane extends StatefulWidget {
     this.shareLinkResolver,
     this.shareCreator,
     this.enableDragDrop = false,
+    this.onUpload,
+    this.onBack,
   });
   final String threadId;
   final String title;
@@ -42,6 +44,8 @@ class ChatPane extends StatefulWidget {
   final Future<Uri> Function(PeerId, ShareId)? shareLinkResolver;
   final Future<ShareId> Function(String)? shareCreator;
   final bool enableDragDrop;
+  final VoidCallback? onUpload;
+  final VoidCallback? onBack;
 
   @override
   State<ChatPane> createState() => _ChatPaneState();
@@ -355,6 +359,12 @@ class _ChatPaneState extends State<ChatPane> {
             ),
             child: Row(
               children: [
+                if (widget.onBack != null)
+                  IconButton(
+                    tooltip: '返回联系人',
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
                 AvatarBadge(
                   peerId: widget.avatarSeed,
                   avatarBytes: widget.avatarBytes,
@@ -459,9 +469,21 @@ class _ChatPaneState extends State<ChatPane> {
                           color: tokens.fgDim,
                         ),
                       ),
+                    if (widget.onUpload != null)
+                      IconButton(
+                        key: const ValueKey('chat-upload'),
+                        tooltip: '上传并发送文件',
+                        onPressed: _sending ? null : widget.onUpload,
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: tokens.accent,
+                        ),
+                      ),
                     Expanded(
                       child: Text(
-                        'Enter 发送 · Shift+Enter 换行',
+                        MediaQuery.sizeOf(context).width < 600
+                            ? '发送到当前聊天'
+                            : 'Enter 发送 · Shift+Enter 换行',
                         textAlign: TextAlign.end,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

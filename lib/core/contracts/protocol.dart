@@ -9,6 +9,7 @@ import 'dart:convert';
 
 import 'errors.dart';
 import 'types.dart' hide OfferOrigin;
+import '../platform/device_platform.dart';
 export 'types.dart' show OfferOrigin;
 
 /// 发现公告，v2。
@@ -79,6 +80,8 @@ final class AnnouncePacket {
   final String mode;
   final int timestamp;
   final String signature;
+
+  String? get operatingSystem => platformFromCapabilities(capabilities);
 
   /// 参与签名的规范化 JSON：除 sig 外全部字段，键序固定。
   Map<String, Object?> signablePayload() => <String, Object?>{

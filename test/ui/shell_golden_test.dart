@@ -5,6 +5,7 @@
 /// 生成方式（会写文件，不参与常规断言）：
 ///   flutter test test/ui/shell_golden_test.dart --update-goldens
 /// 产物在 test/ui/goldens/ 下，可直接打开肉眼确认设计语言。
+@Tags(['golden'])
 library;
 
 import 'package:flutter/material.dart';
@@ -30,7 +31,8 @@ final class DemoSource implements ShellSessionSource {
             id: 'p_aaaaaaaaaaaaa',
             title: 'YG 的台式机',
             avatarSeed: 'p_7fk3m9x2a1c01',
-            subtitle: '7 项共享 · windows',
+            subtitle: '7 项共享',
+            os: 'windows',
             timeLabel: '14:23',
             online: true,
           ),
@@ -38,7 +40,8 @@ final class DemoSource implements ShellSessionSource {
             id: 'p2',
             title: '小米手机',
             avatarSeed: 'p_7fk3m9x2a1c02',
-            subtitle: '3 项共享 · android',
+            subtitle: '3 项共享',
+            os: 'android',
             timeLabel: '13:07',
             unread: 5,
             online: true,
@@ -50,6 +53,7 @@ final class DemoSource implements ShellSessionSource {
             subtitle: '离线 · 暂无共享',
             timeLabel: '昨天',
             online: false,
+            os: 'macos',
           ),
           SessionRowData(
             id: 'p4',
@@ -59,6 +63,7 @@ final class DemoSource implements ShellSessionSource {
             timeLabel: '11/02',
             unread: 128,
             online: true,
+            os: 'linux',
           ),
         ];
       case ShellSection.groups:
@@ -118,6 +123,7 @@ Future<void> pumpDemo(
     ),
   );
   await tester.pumpAndSettle();
+  await settleGoldenImages(tester);
 }
 
 Future<void> pumpGroupChat(WidgetTester tester, Brightness brightness) async {
@@ -146,6 +152,7 @@ Future<void> pumpGroupChat(WidgetTester tester, Brightness brightness) async {
   await pumpDemo(tester, brightness: brightness, messaging: messaging);
   await tester.tap(find.byKey(const ValueKey('session-row-g_family')));
   await tester.pumpAndSettle();
+  await settleGoldenImages(tester);
 }
 
 void main() {

@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -19,30 +20,26 @@ import 'ui/shell/custom_title_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
 
   // 桌面端改成无边框窗口 + 自绘标题栏：系统标题栏是最强的「工具软件」信号。
   // Android 不进入这个分支（条件导入的 stub 会直接返回）。
   await initDesktopWindow();
 
-  final String dataDirPath =
-      (await getApplicationSupportDirectory()).path;
+  final String dataDirPath = (await getApplicationSupportDirectory()).path;
 
   try {
     // enableDiscovery 打开后本机会真实广播；离线环境（无网卡）会降级为只发不收，
     // 由 AnnounceService.degradedReason 暴露原因，不阻断启动。
     final AppServices services = await AppAssembler.assemble(
       dataDir: Directory(dataDirPath),
-      // 默认昵称取登录账户名（不是主机名）：机器名区分不了「谁」。
-      name: resolveDefaultNickname(),
+      // Android uses its configured device name; desktop uses the account name.
+      name: await loadDefaultNickname(),
       enableLocalDomains: true,
     );
-    runApp(
-      ProviderScope(
-        child: LanFileApp(
-          services: services,
-        ),
-      ),
-    );
+    runApp(ProviderScope(child: LanFileApp(services: services)));
   } catch (error, stack) {
     runApp(_StartupFailureApp(error: error, stack: stack));
   }

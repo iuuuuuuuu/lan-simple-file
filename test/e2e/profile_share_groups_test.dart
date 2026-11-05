@@ -227,7 +227,7 @@ void main() {
         services,
         '/api/v1/avatar/${services.identity.peerId.value}',
       )).mime,
-      'image/svg+xml',
+      'image/png',
     );
   });
 

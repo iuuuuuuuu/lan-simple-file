@@ -1,13 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-/// 本机默认昵称：取**登录账户名**，不是主机名。
-///
-/// 为什么不用 `Platform.localHostname`：那是机器名（如「公司电脑-M600」），
-/// 同一台机器上换账号仍是同一个名字，用来区分「谁在共享」是错的。
-/// 用户名才是「人的身份」。
+/// 本机默认昵称：Android 取系统设备名，桌面端取登录账户名。
 library;
 
 import 'dart:io';
+
+import 'package:flutter/services.dart';
+
+const deviceNameChannel = MethodChannel('lan_simple_file/device_info');
+
+Future<String> loadDefaultNickname({
+  String? operatingSystem,
+  MethodChannel channel = deviceNameChannel,
+}) async {
+  if ((operatingSystem ?? Platform.operatingSystem) != 'android') {
+    return resolveDefaultNickname();
+  }
+  try {
+    final name = (await channel.invokeMethod<String>('getDeviceName'))?.trim();
+    if (name != null && name.isNotEmpty) {
+      return name.length > 64 ? name.substring(0, 64) : name;
+    }
+  } on PlatformException {
+    // Device names are optional; no permissions are requested.
+  } on MissingPluginException {
+    // Tests and older embeddings may not expose the channel.
+  }
+  return 'Android';
+}
 
 /// 取当前登录账户名。
 ///
@@ -15,6 +35,7 @@ import 'dart:io';
 /// 都取不到时回落主机名，再不行给「本机」——**绝不返回空串**，
 /// 空名字会让「附近的人」里出现一条没有名字的记录。
 String resolveDefaultNickname({Map<String, String>? environment}) {
+  if (environment == null && Platform.isAndroid) return 'Android';
   final Map<String, String> env = environment ?? Platform.environment;
   for (final String key in const <String>[
     'USERNAME', // Windows

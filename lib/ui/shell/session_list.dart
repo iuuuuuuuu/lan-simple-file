@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/contacts/peer_groups.dart';
 import '../widgets/avatar_badge.dart';
+import '../widgets/device_platform_label.dart';
 import 'design.dart';
 
 /// 中栏宽度（与 tokens 的 sessionListWidth 对齐，供外部断言引用）。
@@ -40,6 +41,7 @@ final class SessionRowData {
     this.isGroup = false,
     this.avatarBytes,
     this.isSelf = false,
+    this.os,
   });
 
   /// 稳定标识（用于 Key 与选中判定）。
@@ -67,6 +69,7 @@ final class SessionRowData {
   final bool isGroup;
   final Uint8List? avatarBytes;
   final bool isSelf;
+  final String? os;
 }
 
 /// 中栏：搜索 + 列表。
@@ -243,6 +246,8 @@ class _SessionListState extends State<SessionList> {
                 GestureDetector(
                   onSecondaryTapDown: (details) =>
                       _rowMenu(row, details.globalPosition),
+                  onLongPressStart: (details) =>
+                      _rowMenu(row, details.globalPosition),
                   child: SessionListRow(
                     row: row,
                     selected: row.id == widget.selectedId,
@@ -282,7 +287,9 @@ class _SessionListState extends State<SessionList> {
 
     return Container(
       key: const ValueKey<String>('shell-list'),
-      width: kSessionListWidth,
+      width: MediaQuery.sizeOf(context).width < 600
+          ? double.infinity
+          : kSessionListWidth,
       color: tokens.surfaceSunken,
       child: Column(
         children: <Widget>[
@@ -487,6 +494,10 @@ class _SessionListRowState extends State<SessionListRow> {
                                   ),
                                 ),
                               ),
+                              if (row.os?.isNotEmpty == true) ...[
+                                const SizedBox(width: 6),
+                                DevicePlatformLabel(os: row.os!),
+                              ],
                               if (row.timeLabel != null) ...<Widget>[
                                 const SizedBox(width: 6),
                                 Text(row.timeLabel!, style: timeStyle(tokens)),

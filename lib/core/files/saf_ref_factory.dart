@@ -25,11 +25,14 @@ final class SafRefFactory implements FileRefFactory {
   @override
   Future<FileRef> openRoot(String rootUri) async {
     _requireTreeUri(rootUri);
-    return SafRef(
+    final root = SafRef(
       bridge: bridge,
       treeUri: rootUri,
       documentId: _rootDocumentId(rootUri),
     );
+    // 分享创建和索引扫描会立即读取同步属性，先加载真实目录信息。
+    await root.length();
+    return root;
   }
 
   @override
@@ -39,7 +42,9 @@ final class SafRefFactory implements FileRefFactory {
     final String target = itemKey.value;
     if (target == rootDocumentId ||
         target.startsWith('$rootDocumentId/')) {
-      return SafRef(bridge: bridge, treeUri: rootUri, documentId: target);
+      final ref = SafRef(bridge: bridge, treeUri: rootUri, documentId: target);
+      await ref.length();
+      return ref;
     }
     throw LanFileException(
       LanFileErrorCode.invalidArgument,

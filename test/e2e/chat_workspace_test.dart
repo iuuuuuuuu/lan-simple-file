@@ -222,25 +222,29 @@ void main() {
       verifier: Ed25519Signer(),
     );
     final headers = await auth.headers(b.identity.peerId);
-    final client = HttpClient();
-    addTearDown(() => client.close(force: true));
+    // Each upgrade is a fresh connection, including replayed credentials.
     Future<int> upgrade(Map<String, String> proof) async {
-      final req = await client.getUrl(
-        Uri.parse('http://127.0.0.1:${b.port}/ws'),
-      );
-      req.headers.set('connection', 'Upgrade');
-      req.headers.set('upgrade', 'websocket');
-      req.headers.set('sec-websocket-version', '13');
-      req.headers.set('sec-websocket-key', base64Encode(List.filled(16, 2)));
-      proof.forEach(req.headers.set);
-      final response = await req.close();
-      if (response.statusCode == 101) {
-        final socket = await response.detachSocket();
-        socket.destroy();
-      } else {
-        await response.drain<void>();
+      final client = HttpClient();
+      try {
+        final req = await client.getUrl(
+          Uri.parse('http://127.0.0.1:${b.port}/ws'),
+        );
+        req.headers.set('connection', 'Upgrade');
+        req.headers.set('upgrade', 'websocket');
+        req.headers.set('sec-websocket-version', '13');
+        req.headers.set('sec-websocket-key', base64Encode(List.filled(16, 2)));
+        proof.forEach(req.headers.set);
+        final response = await req.close();
+        if (response.statusCode == 101) {
+          final socket = await response.detachSocket();
+          socket.destroy();
+        } else {
+          await response.drain<void>();
+        }
+        return response.statusCode;
+      } finally {
+        client.close(force: true);
       }
-      return response.statusCode;
     }
 
     expect(await upgrade({}), 403);

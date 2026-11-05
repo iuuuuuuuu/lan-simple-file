@@ -229,6 +229,7 @@ class _SharesPageState extends State<SharesPage> {
   /// 当前展开的分享 id；null 表示全部收起。
   String? _expandedId;
   String _search = '';
+
   StreamSubscription<void>? _domainChanges;
 
   @override
@@ -725,6 +726,8 @@ class _ShareCardState extends State<_ShareCard> {
         Expanded(
           child: GestureDetector(
             onSecondaryTapDown: (details) =>
+                _menuKey.currentState?.openContextMenu(details.globalPosition),
+            onLongPressStart: (details) =>
                 _menuKey.currentState?.openContextMenu(details.globalPosition),
             child: ShareRow(
               share: share,

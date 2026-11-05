@@ -58,13 +58,19 @@ class SessionRail extends StatelessWidget {
     this.selfName,
     this.selfBadgeUnread = 0,
     this.avatarBytes,
-    this.sections = const [ShellSection.nearby, ShellSection.shares, ShellSection.transfers],
+    this.sections = const [
+      ShellSection.nearby,
+      ShellSection.shares,
+      ShellSection.transfers,
+    ],
+    this.chatUnread = 0,
   });
 
   /// 本机昵称；显示在头像下方（QQ 那种「头像压名字」）。
   final String? selfName;
   final Uint8List? avatarBytes;
   final List<ShellSection> sections;
+  final int chatUnread;
 
   /// 当前选中的目的地。
   final ShellSection selected;
@@ -151,6 +157,7 @@ class SessionRail extends StatelessWidget {
                 for (final ShellSection section in sections)
                   if (section != ShellSection.settings)
                     _RailButton(
+                      unread: section == ShellSection.nearby ? chatUnread : 0,
                       section: section,
                       selected: section == selected,
                       onTap: () => onSelect(section),
@@ -181,12 +188,14 @@ class _RailButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.buttonKey,
+    this.unread = 0,
   });
 
   final ShellSection section;
   final bool selected;
   final VoidCallback onTap;
   final Key? buttonKey;
+  final int unread;
 
   @override
   Widget build(BuildContext context) {
@@ -204,10 +213,27 @@ class _RailButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(LanFileMetrics.radiusRow),
             child: SizedBox(
               height: 40,
-              child: Icon(
-                selected ? section.selectedIcon : section.icon,
-                size: 22,
-                color: selected ? tokens.accent : tokens.fgDim,
+              child: Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      selected ? section.selectedIcon : section.icon,
+                      size: 22,
+                      color: selected ? tokens.accent : tokens.fgDim,
+                    ),
+                    if (unread > 0)
+                      Positioned(
+                        right: -14,
+                        top: -6,
+                        child: UnreadPill(
+                          key: const ValueKey('desktop-chat-unread'),
+                          count: unread,
+                          compact: true,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

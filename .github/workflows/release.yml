@@ -1,0 +1,201 @@
+name: Beta Release
+
+on:
+  push:
+    tags:
+      - 'v*-beta.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing beta tag to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beta-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_REVISION: '6a19cca56475dbfba1478ee68d7bd0c2ef891da1'
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: main
+          flutter-version: ${{ env.FLUTTER_REVISION }}
+          cache: true
+      - name: Check tag and source version
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+-beta\.\d+$') {
+            throw 'A beta tag is required.'
+          }
+          if (!(Select-String -LiteralPath pubspec.yaml -Pattern "^version: $([regex]::Escape($version))\+\d+$")) {
+            throw 'Tag and pubspec version differ.'
+          }
+          if (!(Test-Path -LiteralPath "docs/releases/$version.md")) {
+            throw 'Release notes are missing.'
+          }
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - name: Serial functional regression
+        run: flutter test --no-pub --concurrency=1 --exclude-tags=golden
+
+  windows:
+    needs: validate
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: main
+          flutter-version: ${{ env.FLUTTER_REVISION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release --no-pub
+      - name: Build installer and verify portable ZIP
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          $runtime = Join-Path $PWD 'build/windows/x64/runner/Release'
+          $dist = Join-Path $PWD 'build/release-dist'
+          $iscc = 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
+          if (!(Test-Path -LiteralPath $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+            $iscc = (Get-ChildItem 'C:/Program Files (x86)/Inno Setup */ISCC.exe' | Select-Object -Last 1).FullName
+          }
+          if ((Get-Item -LiteralPath "$runtime/lan_simple_file.exe").VersionInfo.ProductVersion -notlike "$version+*") {
+            throw 'Windows executable version differs.'
+          }
+          python tool/package_windows_release.py --runtime $runtime --output $dist --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Portable package verification failed.' }
+          & $iscc "/DRuntimeDir=$runtime" "/DOutputDir=$dist" "/DAppVersion=$version" tool/windows_installer.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+          Move-Item -LiteralPath "$dist/lan-simple-file-setup.exe" -Destination "$dist/lan-simple-file-$version-windows-x64-setup.exe"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-windows
+          path: |
+            build/release-dist/*.zip
+            build/release-dist/*.exe
+          if-no-files-found: error
+
+  android:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: main
+          flutter-version: ${{ env.FLUTTER_REVISION }}
+          cache: true
+      - run: flutter pub get
+      - name: Build signed APKs
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          LAN_SIMPLE_FILE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          LAN_SIMPLE_FILE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          LAN_SIMPLE_FILE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$LAN_SIMPLE_FILE_STORE_PASSWORD"
+          export LAN_SIMPLE_FILE_KEYSTORE="$RUNNER_TEMP/release-keystore.p12"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$LAN_SIMPLE_FILE_KEYSTORE"
+          chmod 600 "$LAN_SIMPLE_FILE_KEYSTORE"
+          flutter build apk --release --split-per-abi --no-pub
+      - name: Verify signatures, versions and architectures
+        run: |
+          version="${RELEASE_TAG#v}"
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+          aapt="$(dirname "$signer")/aapt"
+          mkdir -p build/release-dist
+          for abi in arm64-v8a armeabi-v7a x86_64
+          do
+            apk="build/app/outputs/flutter-apk/app-$abi-release.apk"
+            "$signer" verify --verbose --print-certs "$apk"
+            details="$("$aapt" dump badging "$apk")"
+            printf '%s\n' "$details" | grep -F "versionName='$version'"
+            printf '%s\n' "$details" | grep -F "native-code: '$abi'"
+            if printf '%s\n' "$details" | grep -q 'application-debuggable'
+            then
+              echo 'A release APK must not be debuggable.'
+              exit 1
+            fi
+            cp "$apk" "build/release-dist/lan-simple-file-$version-android-$abi.apk"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-android
+          path: build/release-dist/*.apk
+          if-no-files-found: error
+
+  publish:
+    needs: [validate, windows, android]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - name: Upload draft, verify every digest, then publish beta
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          $packages = @(Get-ChildItem -LiteralPath dist -File | Sort-Object Name)
+          if ($packages.Count -ne 5) { throw 'Expected installer, ZIP and three APKs.' }
+          $sums = foreach ($file in $packages) {
+            "$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($file.Name)"
+          }
+          $sums | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+          $notes = Get-Content -LiteralPath "docs/releases/$version.md" -Raw
+          "$notes`n`n构建与验证记录：$env:RUN_URL" | Set-Content -LiteralPath release-notes.md -Encoding utf8
+          $files = @(Get-ChildItem -LiteralPath dist -File)
+          $paths = @($files.FullName)
+          gh release create $env:RELEASE_TAG @paths --verify-tag --draft --prerelease --title "$($env:RELEASE_TAG) - Windows & Android beta" --notes-file release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release upload failed.' }
+          $release = gh api "repos/$env:GH_REPO/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect uploaded release.' }
+          foreach ($file in $files) {
+            $asset = @($release.assets | Where-Object name -eq $file.Name)
+            $digest = 'sha256:' + (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($asset.Count -ne 1 -or $asset[0].digest -ne $digest) {
+              throw "Uploaded digest differs: $($file.Name). Release remains a draft."
+            }
+          }
+          gh release edit $env:RELEASE_TAG --draft=false --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing failed.' }

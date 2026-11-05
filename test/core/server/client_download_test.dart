@@ -1,40 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
-
 import 'dart:io';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/core/server/api/client_download_api.dart';
 import 'package:lan_simple_file/core/server/http_server_host.dart';
 import 'package:lan_simple_file/core/server/router.dart';
 
 void main() {
-  test('客户端下载为完整 ZIP，包含运行文件且排除本机资料，HEAD 不发送包体', () async {
-    final temp = await Directory.systemTemp.createTemp('lsf_client_package_');
+  test('网页返回实际安装程序；HEAD 无包体，缺失安装包返回404', () async {
+    final temp = await Directory.systemTemp.createTemp('lsf_installer_');
     addTearDown(() => temp.delete(recursive: true));
-    final runtime = Directory('${temp.path}/runtime')..createSync();
-    for (final name in [
-      'lan_simple_file.exe',
-      'flutter_windows.dll',
-      'data/app.so',
-      'data/flutter_assets/icon.png',
-      'private.txt',
-    ]) {
-      final file = File('${runtime.path}/$name');
-      await file.parent.create(recursive: true);
-      await file.writeAsString(name);
-    }
-    final packages = ClientPackageSource(
-      runtime: runtime,
-      cache: Directory('${temp.path}/cache'),
-    );
+    final installer = File('${temp.path}/installers/lan-simple-file-setup.exe');
+    await installer.parent.create(recursive: true);
+    await installer.writeAsBytes([77, 90, 1, 2, 3, 4]);
+    final source = ClientPackageSource(runtime: temp);
     final router = Router();
-    registerClientDownloadRoutes(router, packages.package);
-    final server = HttpServerHost(
-      router: router,
-      preferredPort: 0,
-      bindAddress: InternetAddress.loopbackIPv4,
-    );
+    registerClientDownloadRoutes(router, source.package);
+    final server = HttpServerHost(router: router, preferredPort: 0);
     await server.start();
     addTearDown(server.stop);
     final client = HttpClient();
@@ -44,24 +26,25 @@ void main() {
     );
     final response = await (await client.getUrl(url)).close();
     expect(response.statusCode, 200);
+    expect(response.headers.contentType!.mimeType, 'application/octet-stream');
     expect(
       response.headers.value('content-disposition'),
-      contains('attachment'),
+      contains('setup.exe'),
     );
-    final bytes = await response.fold<List<int>>(
-      [],
-      (all, data) => all..addAll(data),
-    );
-    final archive = ZipDecoder().decodeBytes(bytes);
-    expect(archive.map((f) => f.name).toSet(), {
-      'lan_simple_file.exe',
-      'flutter_windows.dll',
-      'data/app.so',
-      'data/flutter_assets/icon.png',
-    });
+    expect(await response.fold<List<int>>([], (a, b) => a..addAll(b)), [
+      77,
+      90,
+      1,
+      2,
+      3,
+      4,
+    ]);
     final head = await (await client.openUrl('HEAD', url)).close();
-    expect(head.contentLength, bytes.length);
-    expect(await head.fold<int>(0, (total, data) => total + data.length), 0);
-    expect((await packages.package()).existsSync(), isTrue);
+    expect(head.contentLength, 6);
+    expect(await head.fold<int>(0, (a, b) => a + b.length), 0);
+    await installer.delete();
+    final missing = await (await client.getUrl(url)).close();
+    expect(missing.statusCode, 404);
+    await missing.drain<void>();
   });
 }

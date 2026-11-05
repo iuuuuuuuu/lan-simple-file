@@ -13,6 +13,7 @@ import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/core/contracts/types.dart';
 import 'package:lan_simple_file/ui/pages/settings_page.dart';
 import 'package:lan_simple_file/ui/widgets/setting_row.dart';
+import 'package:lan_simple_file/ui/widgets/app_toast.dart';
 
 import 'support/settings_stubs.dart';
 
@@ -99,6 +100,7 @@ Widget wrap(Widget child, {Brightness brightness = Brightness.light}) {
 }
 
 void main() {
+  tearDown(AppToast.dismiss);
   testWidgets('允许局域网访问使用实际端口，失败不显示成功', (tester) async {
     final List<int> ports = <int>[];
     final FakeSettingsSource source = FakeSettingsSource(
@@ -157,6 +159,61 @@ void main() {
   });
 
   group('个人资料卡', () {
+    testWidgets('取消弹窗不改名字，中文输入法组词回车不会提前提交', (tester) async {
+      final source = FakeSettingsSource(snapshotOf(nickname: '原昵称'));
+      await tester.pumpWidget(wrap(SettingsPage(source: source)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('nickname-field')), '新中文名字');
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(source.savedNames, isEmpty);
+      expect(find.text('原昵称'), findsOneWidget);
+      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('nickname-field')),
+          matching: find.byType(TextField),
+        ),
+      );
+      field.controller!.value = const TextEditingValue(
+        text: '中文 名字',
+        composing: TextRange(start: 0, end: 5),
+      );
+      field.onSubmitted!('中文 名字');
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(source.savedNames, isEmpty);
+      field.controller!.value = field.controller!.value.copyWith(
+        composing: TextRange.empty,
+      );
+      field.onSubmitted!('中文 名字');
+      field.onSubmitted!('中文 名字');
+      await tester.pumpAndSettle();
+      expect(source.savedNames, ['中文 名字']);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byKey(const ValueKey('app-toast')), findsOneWidget);
+    });
+
+    testWidgets('窄屏修改昵称后 toast 不挤占设置页面', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final source = FakeSettingsSource(snapshotOf());
+      await tester.pumpWidget(wrap(SettingsPage(source: source)));
+      await tester.pumpAndSettle();
+      final before = tester.getTopLeft(find.text('本机信息'));
+      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('nickname-field')), '小明');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('本机信息')), before);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('初始昵称取注入的登录账户名', (WidgetTester tester) async {
       final FakeSettingsSource source = FakeSettingsSource(
         snapshotOf(nickname: 'yg_account'),
@@ -185,6 +242,7 @@ void main() {
       // 点编辑按钮 -> 出现输入框。
       await tester.tap(find.byTooltip('修改昵称'));
       await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '小明');
@@ -194,6 +252,15 @@ void main() {
       expect(source.savedNames, <String>['小明']);
       expect(find.text('小明'), findsOneWidget);
       expect(find.text('昵称已保存'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byKey(const ValueKey('app-toast')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SettingsPage),
+          matching: find.text('昵称已保存'),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('空昵称被拒，且不调用保存', (WidgetTester tester) async {

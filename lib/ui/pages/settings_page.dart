@@ -5,8 +5,7 @@
 /// 三条贯穿本页的约束：
 /// 1. 每一项都**真的读写**：昵称走 store 的 profile.name，重新广播走 announce.probe，
 ///    失效链接走注入的 revokeAllLinks 回调——不做只改内存的假开关。
-/// 2. 昵称初始值必须是**本机登录账户名**（不是主机名）。由外壳注入 currentUserName，
-///    未注入时回落到 resolveDefaultNickname()，两者取的都是登录账户名。
+/// 2. 昵称优先使用外壳或服务中的资料，未连接服务时回落到平台默认昵称。
 /// 3. 「被丢弃的包统计」必须显示真实计数与原因：没有它，用户无法区分
 ///    「没人广播」「验签全失败」「端口被占只发不收」这几种截然不同的故障。
 library;
@@ -24,8 +23,14 @@ import '../../app/widgets/identicon.dart';
 import '../../core/contracts/contracts.dart';
 import '../../core/discovery/peer_activity_tracker.dart';
 import '../../core/platform/default_nickname.dart';
+import '../../core/platform/device_platform.dart';
+export '../../core/platform/device_platform.dart' show platformLabel;
 import '../../core/platform/windows_firewall.dart';
 import '../widgets/setting_row.dart';
+import '../widgets/android_all_files_setting.dart';
+import '../widgets/app_toast.dart';
+import '../widgets/edit_name_dialog.dart';
+import '../widgets/windows_startup_setting.dart';
 import '../widgets/avatar_picker.dart';
 import '../shell/close_behavior.dart';
 
@@ -42,27 +47,10 @@ const int kNicknameMaxLength = 64;
 const String kAppName = '局域网简易文件';
 
 /// 版本号（M0–M7 全部落地）。
-const String kAppVersion = '0.1.0-beta.1';
+const String kAppVersion = '0.1.0-beta.2';
 
 /// 许可标识。
 const String kAppLicense = 'GPL-3.0-only';
-
-/// 操作系统标识转成用户看得懂的名字。
-String platformLabel(String os) {
-  switch (os) {
-    case 'windows':
-      return 'Windows';
-    case 'android':
-      return 'Android';
-    case 'linux':
-      return 'Linux';
-    case 'macos':
-      return 'macOS';
-    case 'ios':
-      return 'iOS';
-  }
-  return os.isEmpty ? '未知' : os;
-}
 
 /// 一次渲染所需的全部数据快照。
 ///
@@ -334,7 +322,7 @@ class SettingsPage extends StatefulWidget {
   /// 可注入的数据源。
   final SettingsSource? source;
 
-  /// 本机登录账户名；未注入时回落到 resolveDefaultNickname()。
+  /// 本机昵称；未注入时使用服务资料或平台默认值。
   final String? currentUserName;
 
   /// 外壳注入的「立即失效所有链接」实现。
@@ -361,7 +349,7 @@ class _SettingsPageState extends State<SettingsPage> {
   SettingsSnapshot? _snapshot;
   Object? _loadError;
   bool _busy = false;
-  String? _toast;
+  bool _choosingNickname = false;
   Uint8List? _avatar;
 
   @override
@@ -402,7 +390,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (injected != null && injected.trim().isNotEmpty) {
       return injected.trim();
     }
-    return resolveDefaultNickname();
+    return widget.services?.profile.name ?? resolveDefaultNickname();
   }
 
   /// 没有注入 revokeAllLinks 时按钮不可用（不撒谎）。
@@ -425,16 +413,41 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _notify(String message, {bool isError = false}) {
+    if (mounted) AppToast.show(context, message, isError: isError);
+  }
+
+  Future<void> _editNickname() async {
+    final snapshot = _snapshot;
+    if (_busy || _choosingNickname || snapshot == null) return;
+    setState(() => _choosingNickname = true);
+    try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (_) => EditNameDialog(
+          title: '修改昵称',
+          label: '昵称',
+          initialValue: snapshot.nickname,
+          maxLength: kNicknameMaxLength,
+          fieldKey: const ValueKey('nickname-field'),
+        ),
+      );
+      if (name != null && mounted) await _saveNickname(name);
+    } finally {
+      if (mounted) setState(() => _choosingNickname = false);
+    }
+  }
+
   Future<void> _saveNickname(String raw) async {
     final SettingsSource? source = _source;
     if (source == null) return;
     final String name = raw.trim();
     if (name.isEmpty) {
-      setState(() => _toast = '昵称不能为空');
+      _notify('昵称不能为空', isError: true);
       return;
     }
-    if (name.length > kNicknameMaxLength) {
-      setState(() => _toast = '昵称最多 $kNicknameMaxLength 个字符');
+    if (name.runes.length > kNicknameMaxLength) {
+      _notify('昵称最多 $kNicknameMaxLength 个字符', isError: true);
       return;
     }
     setState(() => _busy = true);
@@ -445,16 +458,16 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         // 快照本地同步更新，避免改完名字界面还显示旧值。
         _snapshot = old?.copyWith(nickname: name);
-        _toast = '昵称已保存';
         _busy = false;
       });
+      _notify('昵称已保存');
     } on Object catch (error) {
       if (!mounted) return;
       // 失败必须说出来，不能静默回滚。
       setState(() {
-        _toast = '昵称保存失败：$error';
         _busy = false;
       });
+      _notify('昵称保存失败：$error', isError: true);
     }
   }
 
@@ -472,10 +485,10 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
       setState(() {
         _avatar = bytes;
-        _toast = reset ? '已恢复默认头像' : '头像已保存';
       });
+      _notify(reset ? '已恢复默认头像' : '头像已保存');
     } on Object catch (error) {
-      if (mounted) setState(() => _toast = '头像保存失败：$error');
+      _notify('头像保存失败：$error', isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -489,16 +502,16 @@ class _SettingsPageState extends State<SettingsPage> {
       await source.probe();
       if (!mounted) return;
       setState(() {
-        _toast = '已重新广播，正在等待邻居回应';
         _busy = false;
       });
+      _notify('已重新广播，正在等待邻居回应');
       await _reload();
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
-        _toast = '重新广播失败：$error';
         _busy = false;
       });
+      _notify('重新广播失败：$error', isError: true);
     }
   }
 
@@ -510,15 +523,15 @@ class _SettingsPageState extends State<SettingsPage> {
       await source.revokeAllLinks();
       if (!mounted) return;
       setState(() {
-        _toast = '已失效所有分享链接';
         _busy = false;
       });
+      _notify('已失效所有分享链接');
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
-        _toast = '操作失败：$error';
         _busy = false;
       });
+      _notify('操作失败：$error', isError: true);
     }
   }
 
@@ -532,14 +545,14 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _toast = error ?? '已允许私人网络中的本地子网访问端口 $port';
       });
+      _notify(error ?? '已允许私人网络中的本地子网访问端口 $port', isError: error != null);
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _toast = '防火墙设置失败：$error';
       });
+      _notify('防火墙设置失败：$error', isError: true);
     }
   }
 
@@ -567,11 +580,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Column(
       children: <Widget>[
-        if (_toast != null)
-          _SettingsToast(
-            text: _toast!,
-            onDismiss: () => setState(() => _toast = null),
-          ),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -583,8 +591,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: <Widget>[
                     _ProfileCard(
                       snapshot: snapshot,
-                      busy: _busy,
-                      onSaveNickname: _saveNickname,
+                      busy: _busy || _choosingNickname,
+                      onEditNickname: _editNickname,
                       avatarBytes: _avatar,
                       onChangeAvatar:
                           widget.saveAvatar != null ||
@@ -615,6 +623,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       SettingGroup(
                         title: '窗口与托盘',
                         children: [
+                          if (Platform.isWindows) const WindowsStartupSetting(),
                           SettingRow(
                             label: '关闭窗口时',
                             subtitle: '缩回托盘后仍可通过托盘图标打开客户端',
@@ -639,14 +648,13 @@ class _SettingsPageState extends State<SettingsPage> {
                                                 value,
                                               );
                                               if (mounted) {
-                                                setState(
-                                                  () => _toast = '关闭行为已保存',
-                                                );
+                                                _notify('关闭行为已保存');
                                               }
                                             } on Object catch (error) {
                                               if (mounted) {
-                                                setState(
-                                                  () => _toast = '保存失败：$error',
+                                                _notify(
+                                                  '保存失败：$error',
+                                                  isError: true,
                                                 );
                                               }
                                             }
@@ -744,6 +752,13 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: kSettingGroupGap),
+                    if (Platform.isAndroid) ...[
+                      const SettingGroup(
+                        title: '文件访问',
+                        children: [AndroidAllFilesSetting()],
+                      ),
+                      const SizedBox(height: kSettingGroupGap),
+                    ],
                     _SecurityGroup(
                       snapshot: snapshot,
                       busy: _busy,
@@ -796,9 +811,7 @@ class _LogoOption extends StatelessWidget {
                   await controller.select(logo);
                 } on Object catch (error) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('切换 Logo 失败：$error')),
-                    );
+                    AppToast.show(context, '切换 Logo 失败：$error', isError: true);
                   }
                 }
               },
@@ -813,12 +826,20 @@ class _LogoOption extends StatelessWidget {
             children: [
               AppLogoImage(logo: logo, size: 48),
               const SizedBox(height: 10),
-              Text(
-                logo.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: selected ? tokens.accent : tokens.fg,
+              SizedBox(
+                height: MediaQuery.textScalerOf(context).scale(12) * 2.6,
+                child: Center(
+                  child: Text(
+                    logo.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.3,
+                      color: selected ? tokens.accent : tokens.fg,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
@@ -835,11 +856,11 @@ class _LogoOption extends StatelessWidget {
 }
 
 /// 顶部个人资料卡：头像 + 可改昵称 + peerId 小字。
-class _ProfileCard extends StatefulWidget {
+class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     required this.snapshot,
     required this.busy,
-    required this.onSaveNickname,
+    required this.onEditNickname,
     this.avatarBytes,
     this.onChangeAvatar,
     this.onResetAvatar,
@@ -847,46 +868,15 @@ class _ProfileCard extends StatefulWidget {
 
   final SettingsSnapshot snapshot;
   final bool busy;
-  final Future<void> Function(String name) onSaveNickname;
+  final VoidCallback onEditNickname;
   final Uint8List? avatarBytes;
   final VoidCallback? onChangeAvatar;
   final VoidCallback? onResetAvatar;
 
   @override
-  State<_ProfileCard> createState() => _ProfileCardState();
-}
-
-class _ProfileCardState extends State<_ProfileCard> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.snapshot.nickname,
-  );
-  bool _editing = false;
-
-  @override
-  void didUpdateWidget(covariant _ProfileCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 外部快照变了（例如重新加载）且当前没在编辑，就同步显示最新值。
-    if (!_editing && oldWidget.snapshot.nickname != widget.snapshot.nickname) {
-      _controller.text = widget.snapshot.nickname;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _commit() async {
-    await widget.onSaveNickname(_controller.text);
-    if (!mounted) return;
-    setState(() => _editing = false);
-  }
-
-  @override
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    final SettingsSnapshot s = widget.snapshot;
+    final SettingsSnapshot s = snapshot;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -905,25 +895,25 @@ class _ProfileCardState extends State<_ProfileCard> {
                 message: '修改头像',
                 child: InkWell(
                   key: const ValueKey<String>('change-avatar'),
-                  onTap: widget.busy ? null : widget.onChangeAvatar,
+                  onTap: busy ? null : onChangeAvatar,
                   borderRadius: BorderRadius.circular(
                     LanFileMetrics.radiusCard,
                   ),
                   child: PeerAvatar(
                     peerId: s.peerId,
-                    avatarBytes: widget.avatarBytes,
+                    avatarBytes: avatarBytes,
                     size: LanFileMetrics.avatarLarge,
                   ),
                 ),
               ),
-              if (widget.onChangeAvatar != null)
+              if (onChangeAvatar != null)
                 TextButton(
-                  onPressed: widget.busy ? null : widget.onChangeAvatar,
+                  onPressed: busy ? null : onChangeAvatar,
                   child: const Text('修改头像'),
                 ),
-              if (widget.onResetAvatar != null)
+              if (onResetAvatar != null)
                 TextButton(
-                  onPressed: widget.busy ? null : widget.onResetAvatar,
+                  onPressed: busy ? null : onResetAvatar,
                   child: const Text('恢复默认'),
                 ),
             ],
@@ -934,31 +924,16 @@ class _ProfileCardState extends State<_ProfileCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                if (_editing)
-                  TextField(
-                    controller: _controller,
-                    autofocus: true,
-                    maxLength: kNicknameMaxLength,
-                    enableSuggestions: false,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      counterText: '',
-                      hintText: '输入昵称',
-                    ),
-                    style: TextStyle(fontSize: 15, color: tokens.fg),
-                    onSubmitted: (_) => _commit(),
-                  )
-                else
-                  Text(
-                    s.nickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.fg,
-                    ),
+                Text(
+                  s.nickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.fg,
                   ),
+                ),
                 const SizedBox(height: 4),
                 SelectableText(
                   s.peerId,
@@ -969,36 +944,11 @@ class _ProfileCardState extends State<_ProfileCard> {
             ),
           ),
           const SizedBox(width: 10),
-          if (_editing)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextButton(
-                  onPressed: widget.busy ? null : _commit,
-                  child: const Text('保存'),
-                ),
-                TextButton(
-                  onPressed: widget.busy
-                      ? null
-                      : () {
-                          _controller.text = s.nickname;
-                          setState(() => _editing = false);
-                        },
-                  child: const Text('取消'),
-                ),
-              ],
-            )
-          else
-            IconButton(
-              tooltip: '修改昵称',
-              icon: Icon(Icons.edit_outlined, size: 18, color: tokens.fgDim),
-              onPressed: widget.busy
-                  ? null
-                  : () => setState(() {
-                      _editing = true;
-                      _controller.text = s.nickname;
-                    }),
-            ),
+          IconButton(
+            tooltip: '修改昵称',
+            icon: Icon(Icons.edit_outlined, size: 18, color: tokens.fgDim),
+            onPressed: busy ? null : onEditNickname,
+          ),
         ],
       ),
     );
@@ -1158,45 +1108,6 @@ class _DangerButton extends StatelessWidget {
         foregroundColor: tokens.accent,
       ),
       child: const Text('失效', style: TextStyle(fontSize: 12)),
-    );
-  }
-}
-
-/// 顶部临时提示条。
-class _SettingsToast extends StatelessWidget {
-  const _SettingsToast({required this.text, required this.onDismiss});
-
-  final String text;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(LanFileMetrics.radiusRow),
-        border: Border.all(color: tokens.line),
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: tokens.fg),
-            ),
-          ),
-          IconButton(
-            tooltip: '关闭',
-            icon: Icon(Icons.close, size: 16, color: tokens.fgDim),
-            onPressed: onDismiss,
-          ),
-        ],
-      ),
     );
   }
 }

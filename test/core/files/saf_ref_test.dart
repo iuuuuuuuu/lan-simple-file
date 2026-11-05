@@ -460,13 +460,19 @@ void main() {
     });
 
     test('factory.resolve 只接受 root 下的键', () async {
+      fake.on('statItem', (args) => item(
+            documentId: args['documentId'] as String,
+            isDirectory: args['documentId'] == kRootId,
+          ));
       final SafRefFactory factory = SafRefFactory(bridge);
       final FileRef ref = await factory.resolve(kTreeUri, ItemKey(kRootId));
       expect(ref.itemKey.value, kRootId);
+      expect(ref.isDirectory, isTrue);
 
       final FileRef nested =
           await factory.resolve(kTreeUri, ItemKey('$kRootId/Camera/a.jpg'));
       expect(nested.itemKey.value, '$kRootId/Camera/a.jpg');
+      expect(nested.isDirectory, isFalse);
 
       await expectLater(
         factory.resolve(kTreeUri, ItemKey('primary:Download/b.jpg')),
@@ -478,11 +484,37 @@ void main() {
     });
 
     test('factory.openRoot 从树 URI 解出根 documentId', () async {
+      fake.on(
+        'statItem',
+        (_) => item(documentId: kRootId, name: 'DCIM', isDirectory: true),
+      );
       final SafRefFactory factory = SafRefFactory(bridge);
       expect(factory.rootKind, ShareRootKind.safTree);
       final FileRef ref = await factory.openRoot(kTreeUri);
       expect(ref.itemKey.value, kRootId);
       expect((ref as SafRef).documentId, kRootId);
+      expect(ref.displayName, 'DCIM');
+      expect(ref.isDirectory, isTrue);
+      expect(ref.toEntry().kind, EntryKind.directory);
+      expect(fake.callsOf('statItem'), hasLength(1));
+    });
+
+    test('factory.openRoot 保留文件元数据且 documentId 只解码一次', () async {
+      const documentId = 'primary:资料/100%20';
+      final uri = Uri(
+        scheme: 'content',
+        host: 'com.android.externalstorage.documents',
+        pathSegments: ['tree', documentId],
+      ).toString();
+      fake.on('statItem', (args) {
+        expect(args['documentId'], documentId);
+        return item(documentId: documentId, name: '100%20', size: 12);
+      });
+      final ref = await SafRefFactory(bridge).openRoot(uri);
+      expect(ref.displayName, '100%20');
+      expect(ref.isDirectory, isFalse);
+      expect(await ref.length(), 12);
+      expect(fake.callsOf('statItem'), hasLength(1));
     });
 
     test('factory.canRead 权限撤回返回 false', () async {

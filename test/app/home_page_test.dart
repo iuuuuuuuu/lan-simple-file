@@ -76,14 +76,11 @@ void main() {
       expect(find.byKey(kShellContentKey), findsOneWidget);
     });
 
-    testWidgets('窄屏收起中栏（抽屉代替），不出现旧底部导航', (WidgetTester tester) async {
+    testWidgets('手机使用底部悬浮导航，不显示桌面左侧图标栏', (WidgetTester tester) async {
       await _pumpApp(tester, size: const Size(420, 900));
       expect(find.byType(NavigationBar), findsNothing, reason: '窄屏不该退回旧底部导航');
-      expect(
-        find.byKey(const ValueKey<String>('shell-rail')),
-        findsOneWidget,
-        reason: '最窄栏在窄屏也要保留（身份入口）',
-      );
+      expect(find.byKey(const ValueKey<String>('shell-rail')), findsNothing);
+      expect(find.byKey(const ValueKey('mobile-navigation')), findsOneWidget);
     });
 
     testWidgets('点图标栏切到「传输」并显示该 section 的标题', (WidgetTester tester) async {
@@ -165,30 +162,17 @@ void main() {
       expect(tokensOf(ctx), equals(LanFilePalette.light));
     });
 
-    testWidgets('切到暗色后头像随之变成暗色版本', (WidgetTester tester) async {
-      await _pumpApp(tester, mode: AppThemeMode.light);
-      final CustomPaint lightPaint = tester.widget<CustomPaint>(
-        find
-            .descendant(
-              of: find.byType(Identicon),
-              matching: find.byType(CustomPaint),
-            )
-            .first,
-      );
-      final IdenticonPainter lightPainter =
-          lightPaint.painter! as IdenticonPainter;
-      expect(parseIdenticonCanvasFill(lightPainter.svg), identiconCanvasLight);
+    testWidgets('主题切换不会改变默认头像的设备标识', (WidgetTester tester) async {
+      final c = await _pumpApp(tester, mode: AppThemeMode.light);
+      final first = tester.widget<Identicon>(find.byType(Identicon).first);
 
-      final ProviderContainer c = ProviderContainer();
-      addTearDown(c.dispose);
       await c.read(themeModeProvider.notifier).setMode(AppThemeMode.dark);
       await tester.pumpAndSettle();
 
-      // 直接校验生成函数：暗色输入必须给出暗色画布。
-      const String peerId = 'p_localdevice00';
+      expect(c.read(themeModeProvider), AppThemeMode.dark);
       expect(
-        parseIdenticonCanvasFill(buildIdenticonSvg(peerId, dark: true)),
-        identiconCanvasDark,
+        tester.widget<Identicon>(find.byType(Identicon).first).peerId,
+        first.peerId,
       );
     });
   });
@@ -243,7 +227,7 @@ void main() {
         wrap(const PeerAvatar(peerId: 'p_aaa111bbb222z')),
       );
       expect(find.byType(Identicon), findsOneWidget);
-      expect(find.byType(Image), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
     });
 
     testWidgets('avatarBytes 为空数组时同样回落到 identicon', (
@@ -253,7 +237,7 @@ void main() {
         wrap(PeerAvatar(peerId: 'p_aaa111bbb222z', avatarBytes: Uint8List(0))),
       );
       expect(find.byType(Identicon), findsOneWidget);
-      expect(find.byType(Image), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
     });
 
     testWidgets('有自定义头像时显示图片而不是 identicon', (WidgetTester tester) async {

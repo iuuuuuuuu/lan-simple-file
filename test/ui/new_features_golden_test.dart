@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+@Tags(['golden'])
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/app/branding/app_logo.dart';
@@ -81,6 +84,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        if (page == 'logos') await settleGoldenImages(tester);
         await expectLater(
           find.byType(Scaffold),
           matchesGoldenFile('goldens/${page}_${brightness.name}_new.png'),

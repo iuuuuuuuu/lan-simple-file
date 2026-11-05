@@ -3,11 +3,14 @@ package com.lansimplefile.lan_simple_file
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.provider.Settings
 import com.lansimplefile.lan_simple_file.saf.SafBridgeHandler
 import com.lansimplefile.lan_simple_file.service.ForegroundChannelHandler
 import com.lansimplefile.lan_simple_file.service.ShareIntentHandler
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
@@ -16,6 +19,7 @@ class MainActivity : FlutterActivity() {
     private var foreground: ForegroundChannelHandler? = null
 
     private var shareIntent: ShareIntentHandler? = null
+    private var deviceInfo: MethodChannel? = null
 
     /**
      * 冷启动那一刻的 SEND intent。
@@ -33,6 +37,28 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        deviceInfo = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lan_simple_file/device_info",
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "getDeviceName") {
+                    val resolver = applicationContext.contentResolver
+                    val configured = try {
+                        Settings.Global.getString(resolver, "device_name")
+                            ?.takeIf { it.isNotBlank() && it != "null" }
+                            ?: Settings.Secure.getString(resolver, "bluetooth_name")
+                                ?.takeIf { it.isNotBlank() && it != "null" }
+                    } catch (_: SecurityException) {
+                        null
+                    }
+                    result.success(configured ?: Build.MODEL.takeIf { it.isNotBlank() } ?: "Android")
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
 
         val saf = SafBridgeHandler(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         saf.attach()
@@ -65,6 +91,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        deviceInfo?.setMethodCallHandler(null)
+        deviceInfo = null
         safBridge?.detach()
         safBridge = null
         foreground?.detach()

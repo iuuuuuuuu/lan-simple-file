@@ -29,8 +29,11 @@ class _EditNameDialogState extends State<EditNameDialog> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initialValue,
   );
+  bool _submitted = false;
   void _save() {
+    if (_submitted) return;
     if (_form.currentState!.validate()) {
+      _submitted = true;
       Navigator.of(context).pop(_controller.text.trim());
     }
   }
@@ -54,7 +57,10 @@ class _EditNameDialogState extends State<EditNameDialog> {
           autofocus: true,
           maxLength: widget.maxLength,
           decoration: InputDecoration(labelText: widget.label),
-          onFieldSubmitted: (_) => _save(),
+          onFieldSubmitted: (_) {
+            final composing = _controller.value.composing;
+            if (!composing.isValid || composing.isCollapsed) _save();
+          },
           validator: (String? raw) {
             final String value = raw?.trim() ?? '';
             if (value.isEmpty) return '${widget.label}不能为空';

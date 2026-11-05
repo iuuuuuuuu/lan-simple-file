@@ -133,6 +133,7 @@ final class AnnounceServiceImpl implements AnnounceService {
     this.avatarHash = '',
     this.nameReader,
     this.avatarHashReader,
+    this.operatingSystem = '',
     this.capabilities = const <String>{
       'chat',
       'group',
@@ -174,6 +175,7 @@ final class AnnounceServiceImpl implements AnnounceService {
   final String avatarHash;
   final String Function()? nameReader;
   final String Function()? avatarHashReader;
+  final String operatingSystem;
 
   /// 能力集合；写进公告供对端协商。
   final Set<String> capabilities;
@@ -324,7 +326,10 @@ final class AnnounceServiceImpl implements AnnounceService {
       port: serverPort,
       ip: localIpReader?.call() ?? localIp,
       shareCount: shareCount,
-      capabilities: capabilities,
+      capabilities: {
+        ...capabilities,
+        if (operatingSystem.isNotEmpty) 'os:$operatingSystem',
+      },
       mode: mode,
       timestamp: _clock().toUtc().millisecondsSinceEpoch,
       signature: '',
@@ -519,6 +524,14 @@ final class AnnounceServiceImpl implements AnnounceService {
       // 超时移除由 tracker 记录；此处不广播，交由 UI 从 watchPeers 侧感知。
       _rejected._remember('超时移除: ${gone.packet.peerId.value}');
     }
+  }
+
+  /// 接收已经由其他发现传输验证身份和签名的公告。
+  Future<void> acceptVerifiedPacket(AnnouncePacket packet) async {
+    if (packet.peerId == identity.peerId) return;
+    _tracker.touch(packet);
+    await _sink.upsertVerifiedPeer(packet);
+    _incoming?.add(packet);
   }
 
   /// 公钥来源：默认从 peers 表注入；未注入则返回 null（→ 丢弃）。

@@ -18,6 +18,9 @@
     <!-- 电池优化白名单询问（不做静默申请，只用于打开系统对话框）。 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Optional shared-storage access, enabled only by the user in Settings. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
     <!-- 有传输时持短时 WakeLock，保证关屏不断传。 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 

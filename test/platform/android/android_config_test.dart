@@ -67,6 +67,13 @@ void main() {
       expectContains(xml, 'android.permission.INTERNET');
     });
 
+    test('声明可选的所有文件访问权限', () {
+      expectContains(
+        read(manifestFile()),
+        'android.permission.MANAGE_EXTERNAL_STORAGE',
+      );
+    });
+
     test('ACTION_SEND 与 SEND_MULTIPLE 两个 intent-filter 都在 Activity 上', () {
       final String xml = read(manifestFile());
       expectContains(xml, 'android.intent.action.SEND');
@@ -129,6 +136,16 @@ void main() {
   });
 
   group('build.gradle.kts（文本断言，非 AGP 验证）', () {
+    test('发布构建必须提供独立签名，不回退到 debug 签名', () {
+      final String gradle = read(gradleFile());
+      expectContains(gradle, 'LAN_SIMPLE_FILE_KEYSTORE');
+      expectContains(gradle, 'LAN_SIMPLE_FILE_STORE_PASSWORD');
+      expectContains(gradle, 'LAN_SIMPLE_FILE_KEY_ALIAS');
+      expectContains(gradle, 'LAN_SIMPLE_FILE_KEY_PASSWORD');
+      expectContains(gradle, 'Release signing is required');
+      expectNotContains(gradle, 'signingConfigs.getByName("debug")');
+    });
+
     test('minSdk / targetSdk 显式写死而非跟随 flutter 默认值', () {
       final String gradle = read(gradleFile());
       expectContains(gradle, 'minSdk = 24');

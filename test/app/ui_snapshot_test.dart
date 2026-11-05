@@ -5,6 +5,7 @@
 /// 运行方式（会写出 PNG，不参与常规断言）：
 ///   flutter test test/app/ui_snapshot_test.dart --update-goldens
 /// 产物在 test/app/goldens/ 下，可直接打开查看。
+@Tags(['golden'])
 library;
 
 import 'package:flutter/material.dart';
@@ -26,6 +27,7 @@ Future<void> _pump(WidgetTester tester, AppThemeMode mode) async {
     UncontrolledProviderScope(container: c, child: const LanFileApp()),
   );
   await tester.pumpAndSettle();
+  await settleGoldenImages(tester);
 }
 
 void main() {

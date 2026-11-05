@@ -17,8 +17,10 @@ import 'package:lan_simple_file/core/avatars/avatar_store.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/discovery/announce_service_impl.dart';
 import 'package:lan_simple_file/core/discovery/discovery_service_impl.dart';
+import 'package:lan_simple_file/core/discovery/http_peer_discovery.dart';
 import 'package:lan_simple_file/core/discovery/peer_activity_tracker.dart';
 import 'package:lan_simple_file/core/discovery/peer_key_bootstrap.dart';
+import 'package:lan_simple_file/core/platform/browser_link_policy.dart';
 import 'package:lan_simple_file/core/files/local_ref_factory.dart';
 import 'package:lan_simple_file/core/files/saf_bridge.dart';
 import 'package:lan_simple_file/core/files/saf_ref_factory.dart';
@@ -107,7 +109,7 @@ final class StorePeerUpsertSink implements PeerUpsertSink {
             : keyFor?.call(packet.peerId) ?? Uint8List(0),
         name: packet.name,
         avatarHash: packet.avatarHash,
-        os: existing?.os ?? '',
+        os: packet.operatingSystem ?? existing?.os ?? '',
         firstSeen: existing?.firstSeen ?? seenAt,
         lastSeen: seenAt,
         online: true,
@@ -212,6 +214,8 @@ final class AppServices {
     this.localDomainChanges,
     this.browserServer,
     this.browserServerError,
+    this.httpDiscovery,
+    this.browserLinkPolicy = const BrowserLinkPolicy(),
   });
 
   final DeviceIdentity identity;
@@ -234,6 +238,8 @@ final class AppServices {
   final StreamSubscription<void>? localDomainChanges;
   final HttpServerHost? browserServer;
   final String? browserServerError;
+  final HttpPeerDiscovery? httpDiscovery;
+  final BrowserLinkPolicy browserLinkPolicy;
   int get browserPort => browserServer?.port ?? port;
 
   Stream<void> get profileChanges => profile is StoredProfileSource
@@ -339,7 +345,8 @@ final class AppServices {
   /// 不返回一个必然打不开的链接。
   Future<Uri> buildWebLink(ShareId id, {String? token}) async {
     final domain = localDomain;
-    if (domain != null && !domain.ready) {
+    final browserDomain = await browserLinkPolicy.domainFor(domain?.host);
+    if (domain != null && !domain.ready && browserDomain != null) {
       throw LanFileException(
         LanFileErrorCode.providerOffline,
         domain.error ?? '正在注册本机局域网域名，请稍后重试',
@@ -357,7 +364,7 @@ final class AppServices {
       port: domain == null ? port : browserPort,
       shareId: id,
       token: token,
-      localDomain: domain?.host,
+      localDomain: browserDomain,
       // The second listener serves the same routes on the default HTTP port.
     );
   }
@@ -421,7 +428,7 @@ final class AppServices {
       host: endpoint.host,
       port: domainPort ?? endpoint.port,
       shareId: share,
-      localDomain: domain,
+      localDomain: await browserLinkPolicy.domainFor(domain),
     );
   }
 
@@ -484,6 +491,7 @@ final class AppServices {
   final int port;
 
   Future<void> stop() async {
+    await httpDiscovery?.dispose();
     await browserServer?.stop();
     await localDomainChanges?.cancel();
     await localDomain?.stop();
@@ -633,14 +641,8 @@ final class AppAssembler {
         request.response.headers.contentType = ContentType('image', 'png');
         request.response.add(bytes);
       } else {
-        request.response.headers.contentType = ContentType(
-          'image',
-          'svg+xml',
-          charset: 'utf-8',
-        );
-        request.response.write(
-          buildIdenticonSvg(device.peerId.value, dark: false),
-        );
+        request.response.headers.contentType = ContentType('image', 'png');
+        request.response.add(await buildIdenticonPng(device.peerId.value));
       }
       await request.response.close();
     });
@@ -657,7 +659,6 @@ final class AppAssembler {
     registerStaticRoutes(router, StaticHandler(source: assets));
     final clientPackage = ClientPackageSource(
       runtime: File(Platform.resolvedExecutable).parent,
-      cache: Directory(p.join(dataDir.path, 'client-packages')),
     );
     registerClientDownloadRoutes(router, clientPackage.package);
     registerShareRoutes(router, shareSource, templates: assets);
@@ -716,6 +717,7 @@ final class AppAssembler {
       name: effectiveName,
       nameReader: () => profile.name,
       avatarHashReader: () => profile.avatarHash,
+      operatingSystem: Platform.operatingSystem,
       // 公告里必须带本机地址：之前一直是空串，导致对端「能看到人却
       // 下不了他的文件」（StoreTargetResolver 拿不到 host 就判离线）。
       localIp: lanHost ?? '',
@@ -816,14 +818,36 @@ final class AppAssembler {
       unawaited(sweeper.sweep());
     });
 
+    final httpDiscovery = HttpPeerDiscovery(
+      identity: identity,
+      announce: announce,
+      accept: (packet, key, host, remotePort) async {
+        bootstrap.remember(packet.peerId, key);
+        await announce.acceptVerifiedPacket(packet);
+        tracker.touch(packet);
+        discovery.rememberDirectEndpoint(packet.peerId, host, remotePort);
+        await discovery.refresh();
+      },
+    );
+    httpDiscovery.register(router);
     // 8) 发现服务：把公告流 + 活动表 + peers 表组合成 UI 可直接消费的列表。
     discovery = DiscoveryServiceImpl(
       announce: announce,
       tracker: tracker,
       identity: identity,
+      directProbe: (host, remotePort) async {
+        final id = await httpDiscovery.exchange(host, remotePort);
+        if (id == null) {
+          throw LanFileException(
+            LanFileErrorCode.network,
+            httpDiscovery.lastError ?? '设备无法连接',
+          );
+        }
+      },
       nameResolver: (PeerId p) async => (await store.findDevice(p))?.name,
       avatarHashReader: (PeerId p) async =>
           (await store.findDevice(p))?.avatarHash,
+      osReader: (PeerId p) async => (await store.findDevice(p))?.os,
       shareCountReader: (PeerId p) async {
         final List<ShareRecord> list = await store.listShares(
           owner: p,
@@ -842,6 +866,14 @@ final class AppAssembler {
       headersFor: chatAuth.headers,
     );
     if (enableDiscovery) chatConnections.start(discovery.watchPeers());
+    if (enableDiscovery && Platform.isAndroid && lanHost == '10.0.2.15') {
+      httpDiscovery.startHostPolling(
+        '10.0.2.2',
+        LanFileConstants.httpPort,
+        chatConnections.connect,
+      );
+    }
+
     router.post(
       HttpGroupTransport.path,
       (HttpRequest request) =>
@@ -921,6 +953,7 @@ final class AppAssembler {
       localDomainChanges: localDomainChanges,
       browserServer: browserServer,
       browserServerError: browserServerError,
+      httpDiscovery: httpDiscovery,
     );
   }
 }

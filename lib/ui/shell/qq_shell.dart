@@ -13,6 +13,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/assembly.dart';
 import '../../app/theme/tokens.dart';
@@ -26,6 +27,9 @@ import '../widgets/app_toast.dart';
 import '../widgets/drop_share_overlay.dart';
 import '../widgets/share_row.dart';
 import '../widgets/chat_pane.dart';
+import '../widgets/mobile_navigation.dart';
+import '../widgets/pick_share_files.dart';
+import '../widgets/share_upload_sheet.dart';
 import '../widgets/share_picker_dialog.dart';
 import '../widgets/edit_name_dialog.dart';
 import 'design.dart';
@@ -86,6 +90,7 @@ final class ServiceShellSessionSource implements ShellSessionSource {
                 online: device.isSelf,
                 shareCount: 0,
                 lastSeen: device.lastSeen,
+                os: device.os,
               ),
             );
           }
@@ -120,6 +125,7 @@ final class ServiceShellSessionSource implements ShellSessionSource {
                         ),
                 ),
                 online: peer.online,
+                os: peer.os,
                 isSelf: peer.peerId == services.identity.peerId,
                 unread: thread?.unread ?? 0,
                 avatarBytes: await services.avatarFor(peer),
@@ -416,11 +422,22 @@ class _QqShellState extends State<QqShell> {
         _reloadSilently();
       }
     });
-    _threadSubscription = services?.messaging.watchThreads().listen((_) {
-      if (mounted && _section == ShellSection.nearby) _reloadSilently();
-    });
+    _threadSubscription = (widget.messaging ?? services?.messaging)
+        ?.watchThreads()
+        .listen((threads) {
+          if (!mounted) return;
+          final total = threads
+              .where((thread) => thread.deletedAt == null)
+              .fold<int>(
+                0,
+                (sum, thread) => sum + (thread.unread > 0 ? thread.unread : 0),
+              );
+          setState(() => _chatUnread = total);
+          if (_section == ShellSection.nearby) _reloadSilently();
+        });
   }
 
+  int _chatUnread = 0;
   int _rowGeneration = 0;
   void _reloadSilently() {
     final ShellSessionSource? source = _source;
@@ -455,7 +472,8 @@ class _QqShellState extends State<QqShell> {
   void didUpdateWidget(QqShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionSource != oldWidget.sessionSource ||
-        widget.services != oldWidget.services) {
+        widget.services != oldWidget.services ||
+        widget.messaging != oldWidget.messaging) {
       _source =
           widget.sessionSource ??
           (widget.services == null
@@ -499,12 +517,61 @@ class _QqShellState extends State<QqShell> {
     });
   }
 
+  bool _uploading = false;
+  bool _choosingUpload = false;
+  Future<void> _uploadFiles() async {
+    if (_uploading || _choosingUpload || widget.services == null) return;
+    setState(() => _choosingUpload = true);
+    try {
+      final kind = await showShareUploadSheet(context);
+      if (kind == null || !mounted) return;
+      setState(() => _uploading = true);
+      debugPrint('share-picker selection: ${kind.name}');
+      final shares = switch (kind) {
+        ShareUploadKind.folder => await pickShareFolder(widget.services!),
+        ShareUploadKind.file => await pickShareFiles(widget.services!),
+        ShareUploadKind.photo => await pickShareFiles(
+          widget.services!,
+          photos: true,
+        ),
+      };
+      if (!mounted || shares.isEmpty) return;
+      if (_selectedSession != null && _sectionWantsList(_section)) {
+        final row = _selectedSession!;
+        final self = widget.services!.identity.peerId;
+        final thread = row.isGroup
+            ? row.id
+            : directThreadId(self, PeerId.parse(row.id));
+        for (final share in shares) {
+          await widget.services!.messaging.sendFile(thread, share.id);
+        }
+      } else {
+        _selectSection(ShellSection.shares);
+      }
+      if (mounted) {
+        AppToast.show(context, '已加入分享 ${shares.length} 项');
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        AppToast.show(context, '分享失败：$error', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _choosingUpload = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final LanFileTokens tokens =
         Theme.of(context).extension<LanFileTokens>() ??
         LanFilePalette.of(Theme.of(context).brightness);
     final double width = MediaQuery.sizeOf(context).width;
+    final mobile = width < 600;
 
     // 聊天入口保留联系人与群聊分组；分享、传输和设置铺满内容区。
     // 手机先展示列表，选择会话后进入聊天，顶部提供返回列表的按钮。
@@ -527,6 +594,7 @@ class _QqShellState extends State<QqShell> {
 
     final Widget rail = SessionRail(
       selected: _section,
+      chatUnread: _chatUnread,
       onSelect: _selectSection,
       selfPeerId: selfPeerId,
       selfName: selfName,
@@ -540,25 +608,35 @@ class _QqShellState extends State<QqShell> {
     final Widget content = _buildContent();
 
     // 桌面列表与聊天并排，手机按当前选择显示其中一栏。
-    final Widget body = Row(
-      children: <Widget>[
-        rail,
-        if (threeColumn) ...<Widget>[
-          VerticalDivider(width: 1, color: tokens.line),
-          showChat ? list : Expanded(child: list),
-          VerticalDivider(width: 1, color: tokens.line),
-        ],
-        if (showChat)
-          Expanded(
-            child: Container(
-              key: kShellContentKey,
-              // 最"近"的一层：内容区底色。
-              color: surfaceOf(tokens, SurfaceTier.content),
-              child: content,
-            ),
-          ),
-      ],
-    );
+    final Widget body = mobile
+        ? SizedBox.expand(
+            child: showChat
+                ? Container(
+                    key: kShellContentKey,
+                    color: tokens.bg,
+                    child: content,
+                  )
+                : list,
+          )
+        : Row(
+            children: <Widget>[
+              rail,
+              if (threeColumn) ...<Widget>[
+                VerticalDivider(width: 1, color: tokens.line),
+                showChat ? list : Expanded(child: list),
+                VerticalDivider(width: 1, color: tokens.line),
+              ],
+              if (showChat)
+                Expanded(
+                  child: Container(
+                    key: kShellContentKey,
+                    // 最"近"的一层：内容区底色。
+                    color: surfaceOf(tokens, SurfaceTier.content),
+                    child: content,
+                  ),
+                ),
+            ],
+          );
 
     final Widget dropped = DropShareOverlay(
       enableDragDrop:
@@ -584,22 +662,81 @@ class _QqShellState extends State<QqShell> {
       child: body,
     );
 
-    return Scaffold(
-      backgroundColor: tokens.bg,
-      body: Column(
-        children: <Widget>[
-          _TopBar(
-            title: _section.label,
-            onBack: needsList && width < 600 && _selectedRowId != null
-                ? () => setState(() {
-                    _selectedRowId = null;
-                    _selectedSession = null;
-                  })
-                : null,
+    final inConversation = needsList && _selectedRowId != null;
+    final navigationVisible =
+        mobile &&
+        !inConversation &&
+        MediaQuery.viewInsetsOf(context).bottom == 0;
+    final shell = PopScope(
+      canPop: !mobile || !inConversation,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          setState(() {
+            _selectedRowId = null;
+            _selectedSession = null;
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: tokens.bg,
+        extendBody: mobile,
+        bottomNavigationBar: navigationVisible
+            ? MobileNavigation(
+                selected: _section,
+                onSelect: _selectSection,
+                onUpload: _uploadFiles,
+                uploading: _uploading,
+                unread: _chatUnread,
+              )
+            : null,
+        body: Padding(
+          padding: EdgeInsets.only(bottom: navigationVisible ? 86 : 0),
+          child: Column(
+            children: <Widget>[
+              if (!mobile)
+                _TopBar(
+                  title: _section.label,
+                  onBack: needsList && width < 600 && _selectedRowId != null
+                      ? () => setState(() {
+                          _selectedRowId = null;
+                          _selectedSession = null;
+                        })
+                      : null,
+                ),
+              if (!mobile) Divider(height: 1, color: tokens.line),
+              Expanded(child: dropped),
+            ],
           ),
-          Divider(height: 1, color: tokens.line),
-          Expanded(child: dropped),
-        ],
+        ),
+      ),
+    );
+    if (!mobile) {
+      return AbsorbPointer(
+        absorbing: _uploading || _choosingUpload,
+        child: shell,
+      );
+    }
+    final background = needsList && !inConversation
+        ? tokens.surfaceSunken
+        : tokens.bg;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: tokens.isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemStatusBarContrastEnforced: false,
+      ),
+      child: ColoredBox(
+        key: const ValueKey('mobile-system-background'),
+        color: background,
+        child: SafeArea(
+          bottom: false,
+          child: AbsorbPointer(
+            absorbing: _uploading || _choosingUpload,
+            child: shell,
+          ),
+        ),
       ),
     );
   }
@@ -723,6 +860,13 @@ class _QqShellState extends State<QqShell> {
         }
         final threadId = row.isGroup ? row.id : directThreadId(self, peer!);
         return ChatPane(
+          onBack: MediaQuery.sizeOf(context).width < 600
+              ? () => setState(() {
+                  _selectedRowId = null;
+                  _selectedSession = null;
+                })
+              : null,
+          onUpload: widget.services == null ? null : _uploadFiles,
           key: ValueKey('chat-$threadId'),
           threadId: threadId,
           title: row.title,

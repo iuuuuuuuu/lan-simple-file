@@ -2,10 +2,12 @@
 package com.lansimplefile.lan_simple_file.service
 
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
@@ -73,6 +75,7 @@ internal class ForegroundChannelHandler private constructor(
             "syncMulticastLock" -> syncMulticastLock(call, result)
             "androidSdk" -> result.success(Build.VERSION.SDK_INT)
             "queryStates" -> result.success(queryPermissionStates())
+            "openAllFilesAccessSettings" -> openAllFilesAccessSettings(result)
             "request" -> requestPermission(call, result)
             else -> result.notImplemented()
         }
@@ -166,7 +169,40 @@ internal class ForegroundChannelHandler private constructor(
         // SAF 授权由 Dart 侧通过 SAF 通道单独判定（persistedUriPermissions），
         // 这里只报"是否已有一条持久授权"，没有就是 denied。
         states["safGrant"] = if (hasPersistedSafGrant()) "granted" else "denied"
+        states["allFilesAccess"] = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R -> "notRequired"
+            Environment.isExternalStorageManager() -> "granted"
+            else -> "denied"
+        }
         return states
+    }
+
+    private fun openAllFilesAccessSettings(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            result.error("unsupported", "所有文件访问设置需要 Android 11 或更高版本", null)
+            return
+        }
+        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            try {
+                context.startActivity(intent)
+            } catch (error: ActivityNotFoundException) {
+                context.startActivity(
+                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
+            }
+            // Opening Settings is not a grant; query again after the user returns.
+            result.success(null)
+        } catch (error: ActivityNotFoundException) {
+            result.error("settingsUnavailable", "系统没有提供所有文件访问设置", null)
+        } catch (error: SecurityException) {
+            result.error("settingsRejected", error.message ?: "系统拒绝打开授权设置", null)
+        }
     }
 
     private fun requestPermission(call: MethodCall, result: MethodChannel.Result) {

@@ -17,6 +17,13 @@ final class PeerKeyBootstrap {
       <PeerId, Future<Uint8List?>>{};
 
   Uint8List? keyFor(PeerId peer) => _keys[peer];
+  void remember(PeerId peer, Uint8List key) {
+    if (key.length != 32 || derivePeerId(key) != peer) {
+      throw const FormatException("公钥不匹配");
+    }
+    if (_keys.length >= 64) _keys.remove(_keys.keys.first);
+    _keys[peer] = key;
+  }
 
   Future<Uint8List?> resolve(
     AnnouncePacket packet,

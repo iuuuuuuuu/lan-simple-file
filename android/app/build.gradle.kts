@@ -4,6 +4,18 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val signingEnvironment = listOf(
+    "LAN_SIMPLE_FILE_KEYSTORE",
+    "LAN_SIMPLE_FILE_STORE_PASSWORD",
+    "LAN_SIMPLE_FILE_KEY_ALIAS",
+    "LAN_SIMPLE_FILE_KEY_PASSWORD",
+).associateWith { System.getenv(it) }
+val hasReleaseSigning = signingEnvironment.values.all { !it.isNullOrBlank() }
+if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) } &&
+    !hasReleaseSigning) {
+    throw GradleException("Release signing is required; see tool/build_android_release.ps1")
+}
+
 android {
     namespace = "com.lansimplefile.lan_simple_file"
     compileSdk = flutter.compileSdkVersion
@@ -39,11 +51,22 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(signingEnvironment.getValue("LAN_SIMPLE_FILE_KEYSTORE")!!)
+                storePassword = signingEnvironment.getValue("LAN_SIMPLE_FILE_STORE_PASSWORD")
+                keyAlias = signingEnvironment.getValue("LAN_SIMPLE_FILE_KEY_ALIAS")
+                keyPassword = signingEnvironment.getValue("LAN_SIMPLE_FILE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: 正式发布前换成自己的签名配置。
-            // 现在沿用 debug 签名，保证 `flutter run --release` 能装。
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -51,7 +74,7 @@ android {
     // `flutter build apk --split-per-abi` 会直接产出这几个 ABI 的 APK。
     splits {
         abi {
-            isEnable = true
+            isEnable = project.findProperty("split-per-abi") == "true"
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86_64")
             isUniversalApk = false

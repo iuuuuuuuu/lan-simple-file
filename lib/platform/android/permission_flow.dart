@@ -209,6 +209,36 @@ final class PermissionBridge {
       );
     }
   }
+
+  /// Optional broad shared-storage access; never blocks the SAF permission flow.
+  Future<PermissionGrantState> allFilesAccessState() async {
+    final states = await queryStates();
+    return switch (states['allFilesAccess']) {
+      'granted' => PermissionGrantState.granted,
+      'denied' => PermissionGrantState.denied,
+      'notRequired' => PermissionGrantState.notRequired,
+      _ => PermissionGrantState.unknown,
+    };
+  }
+
+  /// Opens the OS-owned toggle without claiming that permission was granted.
+  Future<void> openAllFilesAccessSettings() async {
+    try {
+      await _resolved.invokeMethod<void>('openAllFilesAccessSettings');
+    } on MissingPluginException catch (error) {
+      throw PermissionFlowFailure(
+        PermissionFailureKind.notAndroid,
+        '权限通道不可用',
+        cause: error,
+      );
+    } on PlatformException catch (error) {
+      throw PermissionFlowFailure(
+        PermissionFailureKind.requestFailed,
+        '${error.code}: ${error.message ?? '(无消息)'}',
+        cause: error,
+      );
+    }
+  }
 }
 
 /// 权限引导失败的可判定类型。

@@ -4,6 +4,23 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Future<void> settleGoldenImages(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    await Future<void>.delayed(Duration.zero);
+  });
+  await tester.pumpAndSettle();
+  await tester.runAsync(() async {
+    for (final widget in tester.widgetList<Image>(find.byType(Image))) {
+      await precacheImage(
+        widget.image,
+        tester.element(find.byType(Image).first),
+      );
+    }
+  });
+  await tester.pumpAndSettle();
+}
 
 /// 在离屏截图中加载中文和图标字体，不影响产品使用的主题。
 Future<void> loadGoldenFonts() async {
