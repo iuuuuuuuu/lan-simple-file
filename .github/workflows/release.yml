@@ -201,8 +201,12 @@ jobs:
           $paths = @($files.FullName)
           gh release create $env:RELEASE_TAG @paths --verify-tag --draft --prerelease --title "$($env:RELEASE_TAG) - Windows & Android beta" --notes-file release-notes.md
           if ($LASTEXITCODE -ne 0) { throw 'Draft release upload failed.' }
-          $release = gh api "repos/$env:GH_REPO/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          # The releases/tags endpoint does not return unpublished drafts.
+          $release = gh release view $env:RELEASE_TAG --json assets,tagName,isDraft | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect uploaded release.' }
+          if ($release.tagName -ne $env:RELEASE_TAG -or !$release.isDraft) {
+            throw 'Expected the uploaded beta draft.'
+          }
           foreach ($file in $files) {
             $asset = @($release.assets | Where-Object name -eq $file.Name)
             $digest = 'sha256:' + (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
