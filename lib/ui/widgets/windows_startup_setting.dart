@@ -53,7 +53,7 @@ class _WindowsStartupSettingState extends State<WindowsStartupSetting> {
   @override
   Widget build(BuildContext context) => SettingRow(
     label: '开机自动启动',
-    subtitle: _error ?? '登录 Windows 后自动打开客户端',
+    subtitle: _error ?? '登录 Windows 后自动启动客户端',
     trailing: Switch(value: _enabled, onChanged: _busy ? null : _change),
   );
 }

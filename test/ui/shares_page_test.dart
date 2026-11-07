@@ -11,12 +11,89 @@ import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/shares_page.dart';
 import 'package:lan_simple_file/ui/widgets/app_toast.dart';
 import 'package:lan_simple_file/ui/widgets/share_row.dart';
+import 'package:lan_simple_file/ui/widgets/qr_panel.dart';
 
 import 'support/ui_fakes.dart';
 
 void main() {
   // 每个用例后清掉静态 Toast，避免 OverlayEntry 残留到下一用例。
   tearDown(AppToast.dismiss);
+
+  group('分享主页地址', () {
+    testWidgets('空列表也显示域名，复制和二维码都使用根地址', (tester) async {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final uri = Uri.parse('http://alice.local/');
+      await tester.pumpWidget(
+        wrapWithTheme(
+          SharesPage(source: FakeMySharesSource(), homeLink: () async => uri),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(uri.toString()), findsOneWidget);
+      expect(find.text('还没有分享'), findsOneWidget);
+      await tester.tap(find.byTooltip('复制我的分享地址'));
+      await tester.pumpAndSettle();
+      expect(copied, [uri.toString()]);
+      await tester.tap(find.byTooltip('我的分享二维码'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<QrPanel>(find.byType(QrPanel)).linkText,
+        uri.toString(),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('地址不可用时禁用操作，刷新后更新域名和端口', (tester) async {
+      Uri? uri;
+      final copyButton = find.byWidgetPredicate(
+        (widget) => widget is IconButton && widget.tooltip == '复制我的分享地址',
+      );
+      await tester.pumpWidget(
+        wrapWithTheme(
+          SharesPage(source: FakeMySharesSource(), homeLink: () async => uri),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<IconButton>(copyButton).onPressed, isNull);
+      expect(find.text('局域网地址不可用'), findsOneWidget);
+      uri = Uri.parse('http://renamed.local:47779/');
+      await tester.tap(find.byTooltip('刷新'));
+      await tester.pumpAndSettle();
+      expect(find.text(uri.toString()), findsOneWidget);
+      expect(tester.widget<IconButton>(copyButton).onPressed, isNotNull);
+    });
+
+    testWidgets('窄视口下长域名换行，操作按钮不溢出', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final uri = Uri.parse('http://${'a' * 63}.local:47779/');
+      await tester.pumpWidget(
+        wrapWithTheme(
+          SharesPage(source: FakeMySharesSource(), homeLink: () async => uri),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(uri.toString()), findsOneWidget);
+      expect(find.byTooltip('复制我的分享地址'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   group('状态判定（纯函数）', () {
     test('撤销优先于其它一切状态', () {

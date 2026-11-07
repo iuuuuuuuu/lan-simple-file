@@ -103,6 +103,49 @@ foreach (\$entry in @(@('$tag TCP', 6, 7), @('$tag UDP', 17, 2))) {
       expect(allow['Action'], 1);
       expect(allow['LocalPorts'], '$port');
       expect(allow['RemoteAddresses'], 'LocalSubnet');
+
+      // Upgrading an existing installation must also repair discovery and the
+      // browser origin, even when only its API port was previously allowed.
+      for (int i = 0; i < 2; i++) {
+        final ProcessResult repaired = await run(
+          buildWindowsFirewallScript(
+            executablePath: program,
+            port: port,
+            includeMdns: true,
+            includeBrowserPort: true,
+          ),
+        );
+        expect(repaired.exitCode, 0, reason: repaired.stderr.toString());
+      }
+      final ProcessResult upgraded = await run('''
+\$policy = New-Object -ComObject HNetCfg.FwPolicy2
+@(\$policy.Rules | Where-Object { \$_.ApplicationName -ieq '$escapedProgram' } |
+  Select-Object Name,Protocol,Profiles,Action,Enabled,LocalPorts,RemoteAddresses) |
+  ConvertTo-Json -Compress
+''');
+      expect(upgraded.exitCode, 0, reason: upgraded.stderr.toString());
+      final upgradedRules = (jsonDecode(upgraded.stdout.toString()) as List)
+          .cast<Map<String, dynamic>>();
+      expect(upgradedRules, hasLength(5));
+      expect(
+        upgradedRules.singleWhere((r) => r['Name'] == '$tag UDP')['Enabled'],
+        false,
+      );
+      final publicBlock = upgradedRules.singleWhere(
+        (r) => r['Name'] == '$tag TCP',
+      );
+      expect(publicBlock['Enabled'], true);
+      expect(publicBlock['Profiles'], 4);
+      expect(publicBlock['Action'], 0);
+      for (final entry in <(String, int)>[('80', 6), ('5353', 17)]) {
+        final rule = upgradedRules.singleWhere(
+          (r) => r['Action'] == 1 && r['LocalPorts'] == entry.$1,
+        );
+        expect(rule['Protocol'], entry.$2);
+        expect(rule['Enabled'], true);
+        expect(rule['Profiles'], 3);
+        expect(rule['RemoteAddresses'], 'LocalSubnet');
+      }
     } finally {
       await run('''
 \$policy = New-Object -ComObject HNetCfg.FwPolicy2

@@ -82,6 +82,26 @@ Uri buildWebShareUrl({
   required ShareId shareId,
   String? token,
   String? localDomain,
+}) => _buildWebUrl(
+  host: host,
+  port: port,
+  localDomain: localDomain,
+  path: '/s/${shareId.value}',
+  token: token,
+);
+
+Uri buildWebHomeUrl({
+  required String host,
+  required int port,
+  String? localDomain,
+}) => _buildWebUrl(host: host, port: port, localDomain: localDomain, path: '/');
+
+Uri _buildWebUrl({
+  required String host,
+  required int port,
+  required String path,
+  String? localDomain,
+  String? token,
 }) {
   LanAddressGuard.requireCleartextAllowed(host);
   if (localDomain != null && !isLocalDomain(localDomain)) {
@@ -91,7 +111,7 @@ Uri buildWebShareUrl({
     scheme: 'http',
     host: localDomain ?? host,
     port: port,
-    path: '/s/${shareId.value}',
+    path: path,
     queryParameters: token == null || token.isEmpty
         ? null
         : <String, String>{'k': token},

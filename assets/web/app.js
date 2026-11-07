@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-// 网页骨架：只在 M0 阶段证明「页面能加载、能 ping 到本机节点」。
-// 后续里程碑在这里接发现列表、分享树、传输与 WS。
+// The root page lists only the serving node's published shares.
 (function () {
   "use strict";
 
   var THEME_KEY = "lsf.theme";
   var THEMES = ["auto", "light", "dark"];
   var THEME_LABELS = { auto: "跟随系统", light: "明", dark: "暗" };
+  var shares = [];
+  var loading = false;
 
   function readTheme() {
     try {
@@ -22,6 +23,8 @@
     document.documentElement.setAttribute("data-theme", theme);
     var label = document.getElementById("theme-label");
     if (label) label.textContent = THEME_LABELS[theme] || THEME_LABELS.auto;
+    var toggle = document.getElementById("theme-toggle");
+    if (toggle) toggle.title = "切换明暗主题（" + THEME_LABELS[theme] + "）";
     try {
       window.localStorage.setItem(THEME_KEY, theme);
     } catch (error) {
@@ -44,13 +47,8 @@
     setText("status", message);
   }
 
-  function setOnline(online) {
-    var dot = document.getElementById("dot");
-    if (dot) dot.setAttribute("data-online", online ? "true" : "false");
-  }
-
-  function ping() {
-    return fetch("/api/v1/ping", {
+  function getJson(path) {
+    return fetch(path, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -62,17 +60,82 @@
     });
   }
 
-  function renderSelf(payload) {
-    setText("self-name", payload.name || "（未命名设备）");
-    setText("self-id", payload.peerId || "…");
-    setText("self-proto", String(payload.proto));
-    setOnline(true);
-    setStatus("已连接本机节点。");
+  function renderOwner(owner) {
+    var title = (owner.name || "本机") + "的分享";
+    setText("catalog-title", title);
+    document.title = title + " · lan-simple-file";
+    setText("catalog-domain", window.location.host);
+    var avatar = document.getElementById("owner-avatar");
+    if (avatar && owner.avatar) {
+      var url = new URL(owner.avatar, window.location.href);
+      if (url.origin === window.location.origin && url.pathname.indexOf("/api/v1/avatar/") === 0) {
+        avatar.src = url.href;
+        avatar.hidden = false;
+        avatar.onerror = function () { avatar.hidden = true; };
+      }
+    }
   }
 
-  function reportFailure(error) {
-    setOnline(false);
-    setStatus("连接本机节点失败：" + (error && error.message ? error.message : String(error)));
+  function renderShares() {
+    var search = document.getElementById("share-search").value.trim().toLocaleLowerCase();
+    var visible = shares.filter(function (entry) {
+      return String(entry.name || "").toLocaleLowerCase().indexOf(search) >= 0;
+    });
+    var list = document.getElementById("shared-roots");
+    list.textContent = "";
+    visible.forEach(function (entry) {
+      var row = document.createElement("li");
+      row.className = "catalog-entry";
+      var folder = entry.kind === "folder";
+      var icon = document.getElementById(folder ? "catalog-folder-icon" : "catalog-file-icon");
+      row.appendChild(icon.content.cloneNode(true));
+      var href = null;
+      if (entry.access === "browse" && typeof entry.href === "string") {
+        var url = new URL(entry.href, window.location.href);
+        if (url.origin === window.location.origin && /^\/s\/[A-Za-z0-9_-]+$/.test(url.pathname)) {
+          href = url.pathname + url.search;
+        }
+      }
+      var name = document.createElement(href ? "a" : "span");
+      name.className = "catalog-entry-name";
+      name.textContent = entry.name;
+      if (href) name.href = href;
+      row.appendChild(name);
+      var meta = document.createElement("span");
+      meta.className = "catalog-entry-meta";
+      var labels = { password: "需口令", people: "仅限指定用户", group: "仅限群组" };
+      meta.textContent = href ? (folder ? "文件夹" : "文件") : (labels[entry.access] || "受限分享");
+      row.appendChild(meta);
+      list.appendChild(row);
+    });
+    setStatus(search ? "共 " + shares.length + " 项，匹配 " + visible.length + " 项" : "共 " + shares.length + " 项");
+    var empty = document.getElementById("empty-state");
+    empty.hidden = visible.length > 0;
+    empty.textContent = search ? "没有匹配的分享" : "还没有可访问的分享";
+  }
+
+  function loadShares() {
+    if (loading) return;
+    loading = true;
+    var refresh = document.getElementById("refresh");
+    refresh.disabled = true;
+    document.getElementById("shared-roots").setAttribute("aria-busy", "true");
+    setStatus("正在读取分享…");
+    Promise.all([getJson("/api/v1/ping"), getJson("/api/v1/shared-roots")])
+      .then(function (results) {
+        var payload = results[1];
+        renderOwner(payload.owner || results[0]);
+        shares = Array.isArray(payload.shares) ? payload.shares : [];
+        renderShares();
+      })
+      .catch(function (error) {
+        setStatus("读取分享失败：" + (error && error.message ? error.message : String(error)));
+      })
+      .then(function () {
+        loading = false;
+        refresh.disabled = false;
+        document.getElementById("shared-roots").removeAttribute("aria-busy");
+      });
   }
 
   function boot() {
@@ -80,7 +143,10 @@
     var toggle = document.getElementById("theme-toggle");
     if (toggle) toggle.addEventListener("click", cycleTheme);
 
-    ping().then(renderSelf).catch(reportFailure);
+    document.getElementById("refresh").addEventListener("click", loadShares);
+    document.getElementById("share-search").addEventListener("input", renderShares);
+    setText("catalog-domain", window.location.host);
+    loadShares();
   }
 
   if (document.readyState === "loading") {

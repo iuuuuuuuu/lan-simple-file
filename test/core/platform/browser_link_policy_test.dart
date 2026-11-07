@@ -46,6 +46,7 @@ void main() {
 
   test('代理不绕过 local 时生成可直连的局域网 IP 链接，保持端口和凭证', () async {
     final policy = BrowserLinkPolicy(
+      proxyRepair: null,
       proxyQuery: () async => const WindowsBrowserProxy(
         enabled: true,
         server: '127.0.0.1:7890',
@@ -96,5 +97,97 @@ void main() {
       autoConfigUrl: 'http://127.0.0.1:7890/proxy.pac',
     );
     expect(proxy.usesProxyFor('alice.local'), isTrue);
+  });
+
+  test('修复代理绕过后使用域名，保留端口和凭证', () async {
+    final repairedDomains = <String>[];
+    final policy = BrowserLinkPolicy(
+      proxyQuery: () async => const WindowsBrowserProxy(
+        enabled: true,
+        server: '127.0.0.1:7890',
+        bypass: '10.*;<local>',
+      ),
+      proxyRepair: (domain) async {
+        repairedDomains.add(domain);
+        return WindowsBrowserProxy(
+          enabled: true,
+          server: '127.0.0.1:7890',
+          bypass: '10.*;<local>;$domain',
+        );
+      },
+    );
+    final domain = await policy.domainFor('alice.local');
+    final uri = buildWebShareUrl(
+      host: '10.1.2.3',
+      port: 47778,
+      shareId: ShareId.parse('Sabc'),
+      token: 'signed-token',
+      localDomain: domain,
+    );
+    expect(repairedDomains, ['alice.local']);
+    expect(uri.host, 'alice.local');
+    expect(uri.port, 47778);
+    expect(uri.queryParameters['k'], 'signed-token');
+    final home = buildWebHomeUrl(
+      host: '10.1.2.3',
+      port: 80,
+      localDomain: domain,
+    );
+    expect(home.toString(), 'http://alice.local/');
+    expect(home.queryParameters, isEmpty);
+  });
+
+  test('修复失败或未真正绕过时仍回退 IP', () async {
+    for (final repair in <Future<WindowsBrowserProxy?> Function(String)>[
+      (_) async => null,
+      (_) async => throw const ProcessException('powershell.exe', []),
+      (_) async => const WindowsBrowserProxy(
+        enabled: true,
+        server: 'proxy',
+        bypass: '10.*',
+      ),
+    ]) {
+      final policy = BrowserLinkPolicy(
+        proxyQuery: () async => const WindowsBrowserProxy(
+          enabled: true,
+          server: 'proxy',
+          bypass: '',
+        ),
+        proxyRepair: repair,
+      );
+      expect(await policy.domainFor('alice.local'), isNull);
+    }
+  });
+
+  test('PAC、未知配置和非法域名不改写代理设置', () async {
+    var repairs = 0;
+    Future<WindowsBrowserProxy?> repair(String _) async {
+      repairs++;
+      return null;
+    }
+
+    final pac = BrowserLinkPolicy(
+      proxyQuery: () async => const WindowsBrowserProxy(
+        enabled: true,
+        server: 'proxy',
+        bypass: '',
+        autoConfigUrl: 'http://proxy/pac',
+      ),
+      proxyRepair: repair,
+    );
+    expect(await pac.domainFor('alice.local'), isNull);
+    final unknown = BrowserLinkPolicy(
+      proxyQuery: () async => null,
+      proxyRepair: repair,
+    );
+    expect(await unknown.domainFor('alice.local'), isNull);
+    final manual = BrowserLinkPolicy(
+      proxyQuery: () async =>
+          const WindowsBrowserProxy(enabled: true, server: 'proxy', bypass: ''),
+      proxyRepair: repair,
+    );
+    expect(await manual.domainFor('alice.local.example'), isNull);
+    expect(await manual.domainFor('alice.local;evil'), isNull);
+    expect(repairs, 0);
   });
 }

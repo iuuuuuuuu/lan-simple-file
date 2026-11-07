@@ -9,17 +9,23 @@
 /// （rootBundle 在非 widget 环境拿不到），若只走 bundle，端到端测试的页面路由会永远 404。
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 
 import 'static_handler.dart';
+
+const String kClientDownloadPlaceholder = '__LSF_CLIENT_DOWNLOAD__';
+const String kWindowsClientDownloadAsset = 'windows-client-download.html';
+
 /// 从 asset bundle 读 assets/web/ 下的资源，可选用磁盘目录兜底。
 final class FlutterAssetSource implements StaticAssetSource {
   const FlutterAssetSource({
     this.bundle,
     this.prefix = 'assets/web/',
     this.fallbackDir,
+    this.windowsClientDownload,
   });
 
   /// 资源包；默认根包。测试可注入假 bundle。
@@ -33,6 +39,10 @@ final class FlutterAssetSource implements StaticAssetSource {
   /// 只在 bundle 读不到时使用；真机上通常不需要。
   final String? fallbackDir;
 
+  final bool? windowsClientDownload;
+  bool get _windowsClientDownload =>
+      windowsClientDownload ?? Platform.isWindows;
+
   AssetBundle get _bundle => bundle ?? rootBundle;
 
   @override
@@ -41,6 +51,28 @@ final class FlutterAssetSource implements StaticAssetSource {
     if (normalized.isEmpty) {
       return null;
     }
+    if (normalized == kWindowsClientDownloadAsset && !_windowsClientDownload) {
+      return null;
+    }
+    final bytes = await _loadResource(normalized);
+    if (bytes == null || normalized != 'share.html') return bytes;
+    final fragment = _windowsClientDownload
+        ? await _loadResource(kWindowsClientDownloadAsset)
+        : null;
+    // Compose trusted bundled markup before injecting escaped share metadata.
+    return Uint8List.fromList(
+      utf8.encode(
+        utf8
+            .decode(bytes)
+            .replaceAll(
+              kClientDownloadPlaceholder,
+              fragment == null ? '' : utf8.decode(fragment),
+            ),
+      ),
+    );
+  }
+
+  Future<Uint8List?> _loadResource(String normalized) async {
     final Uint8List? fromBundle = await _loadFromBundle(normalized);
     if (fromBundle != null) {
       return fromBundle;

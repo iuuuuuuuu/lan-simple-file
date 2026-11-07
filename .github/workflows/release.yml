@@ -71,7 +71,19 @@ jobs:
           flutter-version: ${{ env.FLUTTER_REVISION }}
           cache: true
       - run: flutter pub get
-      - run: flutter build windows --release --no-pub
+      - name: Build and verify isolated desktop startup
+        shell: pwsh
+        run: |
+          cmake -S test/windows -B build/native-drop-tests -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Native fixture configuration failed.' }
+          cmake --build build/native-drop-tests --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Native fixture build failed.' }
+          ctest --test-dir build/native-drop-tests -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Native fixture regression failed.' }
+          flutter build windows --release --no-pub --target=test/windows/startup_probe.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Startup probe build failed.' }
+          ./tool/test_windows_startup.ps1 -ProbeExecutable build/windows/x64/runner/Release/lan_simple_file.exe
+      - run: flutter build windows --release --no-pub --target=lib/main.dart
       - name: Build installer and verify portable ZIP
         shell: pwsh
         run: |

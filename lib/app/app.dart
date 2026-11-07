@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ui/pages/home_page.dart';
 import '../ui/shell/close_behavior.dart';
 import '../ui/shell/custom_title_bar.dart';
+import '../ui/shell/startup_behavior.dart';
 import '../ui/shell/window_control_stub.dart'
     if (dart.library.io) '../ui/shell/window_control_desktop.dart'
     as wc;
@@ -29,10 +30,12 @@ class LanFileApp extends ConsumerStatefulWidget {
     super.key,
     this.initialTab = HomeTab.nearby,
     this.services,
+    this.startupArguments = const [],
   });
 
   /// 已装配的服务栈；null 表示纯 UI 测试模式。
   final AppServices? services;
+  final List<String> startupArguments;
 
   /// 初始 tab。
   final HomeTab initialTab;
@@ -44,6 +47,7 @@ class LanFileApp extends ConsumerStatefulWidget {
 class _LanFileAppState extends ConsumerState<LanFileApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   CloseBehavior? _closeBehavior;
+  StartupBehavior? _startupBehavior;
   late final LogoController _logo;
   @override
   void initState() {
@@ -75,17 +79,30 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
         reportError: _reportCloseError,
       );
       _closeBehavior = behavior;
+      final startup = StartupBehavior(
+        read: () => services.store.getSetting(StartupBehavior.settingKey),
+        write: (value) =>
+            services.store.setSetting(StartupBehavior.settingKey, value),
+      );
+      _startupBehavior = startup;
       Future<void>(() async {
         try {
-          await _logo.hydrate();
-          await behavior.hydrate();
-          behavior.trayReady = await wc.installDesktopLifecycle(
-            onClose: behavior.requestClose,
-            onExit: () => behavior.requestClose(forceExit: true),
-            logoAsset: _logo.value.iconAsset,
+          await startup.launch(
+            arguments: widget.startupArguments,
+            show: wc.showDesktopWindow,
+            initializeTray: () async {
+              await _logo.hydrate();
+              await behavior.hydrate();
+              behavior.trayReady = await wc.installDesktopLifecycle(
+                onClose: behavior.requestClose,
+                onExit: () => behavior.requestClose(forceExit: true),
+                logoAsset: _logo.value.iconAsset,
+              );
+              return behavior.trayReady;
+            },
           );
         } on Object catch (error) {
-          _reportCloseError(error);
+          _reportCloseError(error, title: '窗口初始化失败');
         }
       });
     } else {
@@ -134,13 +151,13 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
     );
   }
 
-  void _reportCloseError(Object error) {
+  void _reportCloseError(Object error, {String title = '无法关闭窗口'}) {
     final context = _navigatorKey.currentContext;
     if (context == null) return;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('无法关闭窗口'),
+        title: Text(title),
         content: Text(error.toString()),
         actions: [
           TextButton(
@@ -155,6 +172,7 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
   @override
   void dispose() {
     _closeBehavior?.dispose();
+    _startupBehavior?.dispose();
     _logo.dispose();
     super.dispose();
   }
@@ -168,7 +186,13 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
         controller: _logo,
         child: _closeBehavior == null
             ? child!
-            : CloseBehaviorScope(behavior: _closeBehavior!, child: child!),
+            : StartupBehaviorScope(
+                behavior: _startupBehavior!,
+                child: CloseBehaviorScope(
+                  behavior: _closeBehavior!,
+                  child: child!,
+                ),
+              ),
       ),
       title: '局域网文件共享',
       debugShowCheckedModeBanner: false,

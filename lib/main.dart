@@ -17,20 +17,20 @@ import 'app/app.dart';
 import 'app/assembly.dart';
 import 'core/platform/default_nickname.dart';
 import 'ui/shell/custom_title_bar.dart';
+import 'ui/shell/window_control_stub.dart'
+    if (dart.library.io) 'ui/shell/window_control_desktop.dart'
+    as wc;
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
-  // 桌面端改成无边框窗口 + 自绘标题栏：系统标题栏是最强的「工具软件」信号。
-  // Android 不进入这个分支（条件导入的 stub 会直接返回）。
-  await initDesktopWindow();
-
-  final String dataDirPath = (await getApplicationSupportDirectory()).path;
-
   try {
+    // Keep the native window hidden until saved startup and tray setup finish.
+    await initDesktopWindow();
+    final String dataDirPath = (await getApplicationSupportDirectory()).path;
     // enableDiscovery 打开后本机会真实广播；离线环境（无网卡）会降级为只发不收，
     // 由 AnnounceService.degradedReason 暴露原因，不阻断启动。
     final AppServices services = await AppAssembler.assemble(
@@ -39,9 +39,14 @@ Future<void> main() async {
       name: await loadDefaultNickname(),
       enableLocalDomains: true,
     );
-    runApp(ProviderScope(child: LanFileApp(services: services)));
+    runApp(
+      ProviderScope(
+        child: LanFileApp(services: services, startupArguments: arguments),
+      ),
+    );
   } catch (error, stack) {
     runApp(_StartupFailureApp(error: error, stack: stack));
+    if (wc.windowControlAvailable) await wc.showDesktopWindow();
   }
 }
 

@@ -196,6 +196,7 @@ class SharesPage extends StatefulWidget {
     this.now,
     this.onDownload,
     this.onReveal,
+    this.homeLink,
     this.refreshRevision = 0,
   });
 
@@ -218,6 +219,7 @@ class SharesPage extends StatefulWidget {
   /// 为 null 时文件行不显示定位按钮（不制造点了没反应的入口）。
   final void Function(TreeEntryView entry)? onReveal;
 
+  final Future<Uri?> Function()? homeLink;
   final int refreshRevision;
 
   @override
@@ -228,6 +230,7 @@ class _SharesPageState extends State<SharesPage> {
   MySharesSource? _source;
   BrowseSource? _browse;
   late Future<List<ShareRecord>> _future;
+  late Future<Uri?> _homeFuture;
 
   /// 当前展开的分享 id；null 表示全部收起。
   String? _expandedId;
@@ -261,6 +264,16 @@ class _SharesPageState extends State<SharesPage> {
                   ? null
                   : ServiceBrowseSource(widget.services!.shares)));
     _future = _load();
+    _homeFuture = _resolveHomeLink();
+  }
+
+  Future<Uri?> _resolveHomeLink() async {
+    try {
+      final provider = widget.homeLink ?? widget.services?.buildWebHomeLink;
+      return await provider?.call();
+    } on Object {
+      return null;
+    }
   }
 
   Future<List<ShareRecord>> _load() async {
@@ -272,14 +285,17 @@ class _SharesPageState extends State<SharesPage> {
   @override
   void didUpdateWidget(covariant SharesPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshRevision != widget.refreshRevision) {
+    if (oldWidget.refreshRevision != widget.refreshRevision ||
+        oldWidget.homeLink != widget.homeLink) {
       _future = _load();
+      _homeFuture = _resolveHomeLink();
     }
   }
 
   Future<void> _reload() async {
     setState(() {
       _future = _load();
+      _homeFuture = _resolveHomeLink();
     });
   }
 
@@ -293,6 +309,15 @@ class _SharesPageState extends State<SharesPage> {
   void _notify(String message, {bool isError = false}) {
     if (!mounted) return;
     AppToast.show(context, message, isError: isError);
+  }
+
+  Future<void> _copyHomeLink(Uri uri) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: uri.toString()));
+      _notify('已复制我的分享地址');
+    } on Object catch (error) {
+      _notify('复制分享地址失败：$error', isError: true);
+    }
   }
 
   /// 复制网页链接：浏览器可直接打开并下载，是主要用途。
@@ -540,6 +565,73 @@ class _SharesPageState extends State<SharesPage> {
                 ],
               ),
             ),
+            if (widget.services != null || widget.homeLink != null)
+              FutureBuilder<Uri?>(
+                future: _homeFuture,
+                builder: (context, snapshot) {
+                  final uri = snapshot.data;
+                  return Padding(
+                    key: const ValueKey('my-shares-home'),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                    child: Row(
+                      children: [
+                        Icon(Symbols.public, size: 18, color: tokens.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SelectableText(
+                            uri?.toString() ??
+                                (snapshot.connectionState ==
+                                        ConnectionState.waiting
+                                    ? '正在获取分享地址'
+                                    : widget.services?.localDomain?.error ??
+                                          '局域网地址不可用'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: uri == null ? tokens.fgDim : tokens.fg,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '复制我的分享地址',
+                          icon: const Icon(Symbols.content_copy, size: 18),
+                          onPressed: uri == null
+                              ? null
+                              : () => _copyHomeLink(uri),
+                        ),
+                        IconButton(
+                          tooltip: '我的分享二维码',
+                          icon: const Icon(Symbols.qr_code_2, size: 18),
+                          onPressed: uri == null
+                              ? null
+                              : () => showDialog<void>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('我的分享'),
+                                    content: SizedBox(
+                                      width: 240,
+                                      child: QrPanel(
+                                        linkText: uri.toString(),
+                                        layout: QrPanelLayout.compact,
+                                        minSize: 180,
+                                        maxSize: 180,
+                                      ),
+                                    ),
+                                    actions: [
+                                      IconButton(
+                                        tooltip: '关闭',
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        icon: const Icon(Symbols.close),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               child: TextField(

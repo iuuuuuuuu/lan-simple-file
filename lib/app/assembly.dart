@@ -48,6 +48,7 @@ import 'package:lan_simple_file/core/server/api/offer_api.dart';
 import 'package:lan_simple_file/core/server/api/ping_api.dart';
 import 'package:lan_simple_file/core/server/api/profile_api.dart';
 import 'package:lan_simple_file/core/server/api/share_api.dart';
+import 'package:lan_simple_file/core/server/api/share_catalog_api.dart';
 import 'package:lan_simple_file/core/server/api/store_share_source.dart';
 import 'package:lan_simple_file/core/server/api/tree_api.dart';
 import 'package:lan_simple_file/core/server/api/zip_api.dart';
@@ -344,9 +345,19 @@ final class AppServices {
   /// 拿不到本机局域网地址时抛 providerOffline 并给可读原因，
   /// 不返回一个必然打不开的链接。
   Future<Uri> buildWebLink(ShareId id, {String? token}) async {
+    final home = await buildWebHomeLink();
+    return home.replace(
+      path: '/s/${id.value}',
+      queryParameters: token == null || token.isEmpty ? null : {'k': token},
+    );
+  }
+
+  Future<Uri> buildWebHomeLink() async {
     final domain = localDomain;
-    final browserDomain = await browserLinkPolicy.domainFor(domain?.host);
-    if (domain != null && !domain.ready && browserDomain != null) {
+    // The sender's proxy must not rewrite the address shared with recipients.
+    // Keep attempting the local bypass repair without changing the owned domain.
+    await browserLinkPolicy.domainFor(domain?.host);
+    if (domain != null && !domain.ready) {
       throw LanFileException(
         LanFileErrorCode.providerOffline,
         domain.error ?? '正在注册本机局域网域名，请稍后重试',
@@ -359,12 +370,10 @@ final class AppServices {
         '没有检测到局域网地址（可能未连网或只有回环网卡），无法生成网页链接',
       );
     }
-    return buildWebShareUrl(
+    return buildWebHomeUrl(
       host: host,
       port: domain == null ? port : browserPort,
-      shareId: id,
-      token: token,
-      localDomain: browserDomain,
+      localDomain: domain?.host,
       // The second listener serves the same routes on the default HTTP port.
     );
   }
@@ -524,6 +533,7 @@ final class AppAssembler {
     bool enableDiscovery = true,
     bool enableLocalDomains = false,
     int browserPort = 80,
+    bool? enableWindowsClientDownload,
   }) async {
     // 1) 身份：首次启动生成，之后复用；损坏时抛错而不是静默重建。
     final DeviceIdentityImpl identity = await DeviceIdentityImpl.loadOrCreate(
@@ -648,8 +658,11 @@ final class AppAssembler {
     });
 
     // 网页取件与打包下载：生产版静态资源 + 真实存储支撑的分享来源。
+    final windowsClientDownload =
+        enableWindowsClientDownload ?? Platform.isWindows;
     final StaticAssetSource assets = FlutterAssetSource(
       fallbackDir: webAssetsFallbackDir,
+      windowsClientDownload: windowsClientDownload,
     );
     final StoreShareSource shareSource = StoreShareSource(
       store: store,
@@ -657,11 +670,21 @@ final class AppAssembler {
       safFactory: SafRefFactory(const SafBridge()),
     );
     registerStaticRoutes(router, StaticHandler(source: assets));
-    final clientPackage = ClientPackageSource(
-      runtime: File(Platform.resolvedExecutable).parent,
-    );
-    registerClientDownloadRoutes(router, clientPackage.package);
+    if (windowsClientDownload) {
+      final clientPackage = ClientPackageSource(
+        runtime: File(Platform.resolvedExecutable).parent,
+      );
+      registerClientDownloadRoutes(router, clientPackage.package);
+    }
     registerShareRoutes(router, shareSource, templates: assets);
+    registerShareCatalogRoutes(
+      router,
+      source: shareSource,
+      listMine: () => store.listShares(owner: identity.peerId),
+      owner: identity.peerId,
+      nameReader: () => profile.name,
+      avatarReader: () => profile.avatarHash,
+    );
     registerTreeRoutes(router, shareSource);
     registerZipRoutes(router, shareSource);
     final HttpServerHost server = HttpServerHost(

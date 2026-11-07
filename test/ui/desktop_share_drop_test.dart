@@ -23,13 +23,20 @@ Future<void> settleIo(WidgetTester tester) async {
   }
 }
 
-Future<void> dropPaths(WidgetTester tester, List<String> paths) async {
-  final position = tester.getCenter(find.byKey(kShellContentKey));
+Future<void> dropPaths(
+  WidgetTester tester,
+  List<String> paths, {
+  bool legacy = false,
+}) async {
+  final position =
+      tester.getCenter(find.byKey(kShellContentKey)) *
+      tester.view.devicePixelRatio;
   // Exercise the plugin's platform-message path, not just onDragDone.
   for (final call in [
     MethodCall('entered', [position.dx, position.dy]),
-    MethodCall('updated', [position.dx, position.dy]),
+    if (!legacy) MethodCall('updated', [position.dx, position.dy]),
     MethodCall('performOperation', paths),
+    if (legacy) const MethodCall('exited'),
   ]) {
     await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
       'desktop_drop',
@@ -68,10 +75,7 @@ void main() {
       ..writeAsStringSync('keep-nested');
     await tester.pumpWidget(
       wrapShell(
-        QqShell(
-          services: services,
-          initialSection: ShellSection.shares,
-        ),
+        QqShell(services: services, initialSection: ShellSection.shares),
       ),
     );
     await settleIo(tester);
@@ -99,10 +103,14 @@ void main() {
     await tester.pump();
     final second = File(p.join(sandbox.path, 'report-two.txt'))
       ..writeAsStringSync('second-original');
-    await dropPaths(tester, [second.path]);
+    tester.view.devicePixelRatio = 1.5;
+    tester.view.physicalSize = const Size(1920, 1200);
+    await tester.pump();
+    await dropPaths(tester, [second.path], legacy: true);
     expect(find.text('共 3 项'), findsOneWidget);
     expect(find.byType(ShareRow), findsNWidgets(2));
     expect(find.text('report-two.txt'), findsOneWidget);
+    expect(second.readAsStringSync(), 'second-original');
     expect(
       tester
           .widget<EditableText>(

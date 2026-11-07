@@ -18,6 +18,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/legacy.dart';
 import 'package:tray_manager/legacy.dart';
 
@@ -49,10 +50,8 @@ Future<void> initDesktopWindowImpl() async {
     titleBarStyle: TitleBarStyle.hidden,
     title: '局域网简易文件',
   );
-  await windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  // StartupBehavior reveals the window only after the tray is ready.
+  await windowManager.waitUntilReadyToShow(options);
 }
 
 /// 最小化。
@@ -127,8 +126,16 @@ Future<void> destroyDesktopWindow() async {
     trayManager.removeListener(listener);
     _lifecycle = null;
   }
+  await windowManager.setPreventClose(false);
   await trayManager.destroy();
-  await windowManager.destroy();
+  if (Platform.isWindows) {
+    // Defer native teardown until the platform message returns. Synchronous
+    // FFI window destruction can shut down Flutter while Dart is on its stack.
+    await const MethodChannel('lan_simple_file/window')
+        .invokeMethod<void>('destroy');
+  } else {
+    await windowManager.destroy();
+  }
 }
 
 class _DesktopLifecycle with WindowListener, TrayListener {

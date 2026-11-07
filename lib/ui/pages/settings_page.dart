@@ -31,8 +31,10 @@ import '../widgets/android_all_files_setting.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/edit_name_dialog.dart';
 import '../widgets/windows_startup_setting.dart';
+import '../widgets/silent_startup_setting.dart';
 import '../widgets/avatar_picker.dart';
 import '../shell/close_behavior.dart';
+import '../shell/startup_behavior.dart';
 
 /// 昵称在 settings 表里的键。
 const String kProfileNameKey = 'profile.name';
@@ -47,7 +49,7 @@ const int kNicknameMaxLength = 64;
 const String kAppName = '局域网简易文件';
 
 /// 版本号（M0–M7 全部落地）。
-const String kAppVersion = '0.1.0-beta.4';
+const String kAppVersion = '0.1.0-beta.5';
 
 /// 许可标识。
 const String kAppLicense = 'GPL-3.0-only';
@@ -624,6 +626,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         title: '窗口与托盘',
                         children: [
                           if (Platform.isWindows) const WindowsStartupSetting(),
+                          if (StartupBehaviorScope.maybeOf(context)
+                              case final startup?)
+                            SilentStartupSetting(behavior: startup),
                           SettingRow(
                             label: '关闭窗口时',
                             subtitle: '缩回托盘后仍可通过托盘图标打开客户端',

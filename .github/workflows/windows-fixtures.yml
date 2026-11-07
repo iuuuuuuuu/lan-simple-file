@@ -7,10 +7,32 @@ on:
       - test/core/files/local_ref_test.dart
       - test/core/net/local_domain_test.dart
       - test/core/platform/browser_link_policy_test.dart
+      - test/core/platform/windows_firewall_test.dart
       - test/ui/desktop_share_drop_test.dart
+      - test/ui/startup_behavior_test.dart
+      - lib/main.dart
+      - lib/app/app.dart
+      - lib/ui/shell/startup_behavior.dart
+      - lib/ui/shell/window_control_desktop.dart
+      - lib/ui/widgets/silent_startup_setting.dart
+      - tool/test_windows_startup.ps1
       - lib/core/platform/browser_link_policy.dart
+      - lib/core/platform/windows_firewall.dart
       - lib/ui/pages/shares_page.dart
       - lib/ui/shell/qq_shell.dart
+      - lib/app/assembly.dart
+      - lib/core/net/lan_address.dart
+      - lib/core/server/api/share_catalog_api.dart
+      - lib/core/server/static/flutter_asset_source.dart
+      - pubspec.yaml
+      - test/e2e/client_download_platform_test.dart
+      - test/core/server_share/**
+      - test/ui/shares_page_test.dart
+      - test/ui/share_domain_link_test.dart
+      - assets/web/**
+      - windows/runner/**
+      - test/windows/**
+      - tool/test_windows_file_drop.ps1
       - .github/workflows/windows-fixtures.yml
   workflow_dispatch:
 
@@ -31,5 +53,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-pub
-      - name: Verify file fixtures, desktop drops and browser proxy policy
-        run: flutter test --no-pub test/core/files/local_ref_test.dart test/core/net/local_domain_test.dart test/core/platform/browser_link_policy_test.dart test/ui/desktop_share_drop_test.dart
+      - name: Verify file fixtures, desktop drops and LAN access
+        run: flutter test --no-pub test/core/files/local_ref_test.dart test/core/net/local_domain_test.dart test/core/platform/browser_link_policy_test.dart test/core/platform/windows_firewall_test.dart test/core/server_share/share_catalog_api_test.dart test/core/server_share/web_assets_test.dart test/ui/desktop_share_drop_test.dart test/ui/shares_page_test.dart test/ui/share_domain_link_test.dart test/ui/startup_behavior_test.dart test/e2e/client_download_platform_test.dart
+      - name: Build native file-drop fixtures
+        run: |
+          cmake -S test/windows -B build/native-drop-tests -A x64
+          cmake --build build/native-drop-tests --config Release
+      - name: Verify native file-drop paths and registration
+        run: ctest --test-dir build/native-drop-tests -C Release --output-on-failure
