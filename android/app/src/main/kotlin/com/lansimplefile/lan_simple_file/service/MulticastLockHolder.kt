@@ -8,8 +8,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * 组播锁的会话级持有者。
  *
- * 产品约束：有活跃共享才 acquire，无共享立即 release，不常驻持锁。
- * 常驻持锁会让 WiFi 固件持续过滤组播的省电逻辑失效，实测每小时多耗 1-2%。
+ * Activity 可见期间用于发现与 mDNS；后台共享服务独立持有自己的锁。
+ * 调用方在各自生命周期结束时 release，避免空闲时持续接收组播。
  *
  * 用 AtomicBoolean 保证 acquire/release 幂等：重复 acquire 不叠加引用计数，
  * 重复 release 也不会把别人的锁释放掉。

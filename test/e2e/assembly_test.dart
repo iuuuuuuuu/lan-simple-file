@@ -44,7 +44,9 @@ void main() {
       expect(svc.port, greaterThan(0), reason: '启动后必须拿得到真实端口');
       final HttpClient client = HttpClient();
       final HttpClientRequest req = await client.getUrl(
-        Uri.parse('http://127.0.0.1:${svc.port}${LanFileConstants.apiPrefix}/ping'),
+        Uri.parse(
+          'http://127.0.0.1:${svc.port}${LanFileConstants.apiPrefix}/ping',
+        ),
       );
       final HttpClientResponse res = await req.close();
       expect(res.statusCode, 200);
@@ -53,6 +55,14 @@ void main() {
       ) as Map<String, Object?>;
       expect(body['peerId'], svc.identity.peerId.value);
       expect(body['name'], '组装测试机');
+      final domainResponse = await (await client.getUrl(
+        Uri.parse('http://127.0.0.1:${svc.port}/api/v1/local-domain'),
+      )).close();
+      final domain = jsonDecode(
+        await domainResponse.transform(utf8.decoder).join(),
+      );
+      expect(domain['peerId'], svc.identity.peerId.value);
+      expect(domain['httpPort'], svc.port);
       client.close();
     } finally {
       await svc.stop();
@@ -89,7 +99,9 @@ void main() {
       expect(key, isNotNull);
       expect(key!.length, 32);
       // 未知 peerId 必须返回 null，不能乱给一把钥匙。
-      final unknown = await svc.keys.findPublicKey(PeerId.parse('p_zzzzzzzzzzzzz'));
+      final unknown = await svc.keys.findPublicKey(
+        PeerId.parse('p_zzzzzzzzzzzzz'),
+      );
       expect(unknown, isNull);
     } finally {
       await svc.stop();
@@ -104,9 +116,11 @@ void main() {
       enableDiscovery: false,
     );
     try {
-      final Directory root = Directory('${tmp.path}${Platform.pathSeparator}shared')
-        ..createSync();
-      File('${root.path}${Platform.pathSeparator}a.txt').writeAsStringSync('hello');
+      final Directory root = Directory(
+        '${tmp.path}${Platform.pathSeparator}shared',
+      )..createSync();
+      File('${root.path}${Platform.pathSeparator}a.txt')
+          .writeAsStringSync('hello');
 
       final ShareRecord created = await svc.shares.create(
         CreateShareRequest(
@@ -119,7 +133,10 @@ void main() {
       expect(created.displayName, '相册');
 
       final List<ShareRecord> mine = await svc.shares.listMine();
-      expect(mine.map((ShareRecord s) => s.id.value), contains(created.id.value));
+      expect(
+        mine.map((ShareRecord s) => s.id.value),
+        contains(created.id.value),
+      );
 
       final Uri link = await svc.shares.buildLink(created.id);
       final String linkText = link.toString();

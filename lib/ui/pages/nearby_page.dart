@@ -112,6 +112,7 @@ class _NearbyPageState extends State<NearbyPage> {
   PeerGroupsSource? _groupsSource;
   PeerGroups _groups = const PeerGroups();
   List<PeerView> _peers = const <PeerView>[];
+  String _query = '';
   final Map<String, Uint8List?> _avatars = <String, Uint8List?>{};
   final Set<String> _collapsed = <String>{};
   StreamSubscription<List<PeerView>>? _subscription;
@@ -308,7 +309,7 @@ class _NearbyPageState extends State<NearbyPage> {
   );
 
   Widget _groupSection(String id, String name, List<PeerView> peers) {
-    final bool collapsed = _collapsed.contains(id);
+    final bool collapsed = _collapsed.contains(id) && _query.trim().isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -358,7 +359,14 @@ class _NearbyPageState extends State<NearbyPage> {
       );
     }
     final PeerId? self = widget.services?.identity.peerId;
-    final List<PeerView> peers = _peers;
+    final query = _query.trim().toLowerCase();
+    final List<PeerView> peers = _peers
+        .where(
+          (peer) =>
+              peer.name.toLowerCase().contains(query) ||
+              peer.peerId.value.toLowerCase().contains(query),
+        )
+        .toList();
     return Column(
       children: <Widget>[
         _ListHeader(
@@ -368,8 +376,22 @@ class _NearbyPageState extends State<NearbyPage> {
               ? null
               : () => _editGroup(),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: TextField(
+            key: const ValueKey('nearby-search'),
+            onChanged: (value) => setState(() => _query = value),
+            decoration: const InputDecoration(
+              hintText: '搜索名字或设备 ID',
+              prefixIcon: Icon(Icons.search),
+              isDense: true,
+            ),
+          ),
+        ),
         Expanded(
-          child: peers.isEmpty && _groups.names.isEmpty
+          child: peers.isEmpty && query.isNotEmpty
+              ? const Center(child: Text('没有匹配的设备'))
+              : peers.isEmpty && _groups.names.isEmpty
               ? const _EmptyNearby()
               : ListView(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),

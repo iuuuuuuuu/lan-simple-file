@@ -63,6 +63,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.gradleProperty("lanProbe").orNull == "true") {
+                applicationIdSuffix = ".probe"
+            }
+        }
         release {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
@@ -93,6 +98,7 @@ flutter {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     // SAF 桥用 DocumentFile 做文档属性查询（1.0.0 与 Flutter 默认依赖链兼容）。
     implementation("androidx.documentfile:documentfile:1.0.0")
 

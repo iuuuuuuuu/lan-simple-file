@@ -76,7 +76,33 @@ void main() {
         ..peers = <dynamic>[peerView(suffix: '03', name: '')].cast();
       await tester.pumpWidget(wrapWithTheme(NearbyPage(source: source)));
       await tester.pumpAndSettle();
-      expect(find.text(peerOf('03').value), findsOneWidget);
+      // The fallback title and the copyable device ID both retain the identity.
+      expect(find.text(peerOf('03').value), findsNWidgets(2));
+      expect(find.byTooltip('复制设备 ID'), findsOneWidget);
+    });
+
+    testWidgets('同名设备可按 ID 搜索，搜索会展开已折叠分组', (tester) async {
+      final source = FakeNearbySource()
+        ..peers = [
+          peerView(suffix: '01', name: '同名'),
+          peerView(suffix: '02', name: '同名'),
+        ];
+      await tester.pumpWidget(wrapWithTheme(NearbyPage(source: source)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('peer-group-')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PeerCard), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('nearby-search')),
+        peerOf('02').value.toUpperCase(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PeerCard), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('nearby-peer-${peerOf('02').value}')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('点开某人能进入其分享列表', (WidgetTester tester) async {

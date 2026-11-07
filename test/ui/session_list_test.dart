@@ -5,16 +5,14 @@ library;
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/shell/session_list.dart';
 import 'package:lan_simple_file/ui/widgets/avatar_badge.dart';
 
-Widget wrapList(
-  Widget child, {
-  Brightness brightness = Brightness.light,
-}) =>
+Widget wrapList(Widget child, {Brightness brightness = Brightness.light}) =>
     MaterialApp(
       theme: AppTheme.of(LanFilePalette.of(brightness)),
       home: Scaffold(body: child),
@@ -24,13 +22,12 @@ SessionList buildList({
   required List<SessionRowData> rows,
   String? selectedId,
   ValueChanged<SessionRowData>? onSelect,
-}) =>
-    SessionList(
-      title: '附近的人',
-      rows: rows,
-      selectedId: selectedId,
-      onSelect: onSelect ?? (SessionRowData row) {},
-    );
+}) => SessionList(
+  title: '附近的人',
+  rows: rows,
+  selectedId: selectedId,
+  onSelect: onSelect ?? (SessionRowData row) {},
+);
 
 SessionRowData rowOf(String id, String title, {int unread = 0, String? sub}) =>
     SessionRowData(
@@ -46,11 +43,15 @@ void main() {
   group('行渲染', () {
     testWidgets('3 个 peer 渲染 3 行，名字与分享数正确', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '张三'),
-          rowOf('b', '李四', sub: '1 项共享'),
-          rowOf('c', '王五', sub: '暂无共享'),
-        ])),
+        wrapList(
+          buildList(
+            rows: <SessionRowData>[
+              rowOf('a', '张三'),
+              rowOf('b', '李四', sub: '1 项共享'),
+              rowOf('c', '王五', sub: '暂无共享'),
+            ],
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -74,10 +75,12 @@ void main() {
     testWidgets('点行触发 onSelect', (WidgetTester tester) async {
       SessionRowData? picked;
       await tester.pumpWidget(
-        wrapList(buildList(
-          rows: <SessionRowData>[rowOf('a', '张三')],
-          onSelect: (SessionRowData row) => picked = row,
-        )),
+        wrapList(
+          buildList(
+            rows: <SessionRowData>[rowOf('a', '张三')],
+            onSelect: (SessionRowData row) => picked = row,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey<String>('session-row-a')));
@@ -87,13 +90,77 @@ void main() {
   });
 
   group('搜索过滤', () {
+    testWidgets('同名设备按完整或部分 ID 搜索并复制完整 ID', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = call.arguments['text'];
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        wrapList(
+          buildList(
+            rows: const [
+              SessionRowData(
+                id: 'p_devicefirst01',
+                peerId: 'p_devicefirst01',
+                title: '好好吃饭',
+                avatarSeed: 'p_devicefirst01',
+              ),
+              SessionRowData(
+                id: 'p_devicesecond2',
+                peerId: 'p_devicesecond2',
+                title: '好好吃饭',
+                avatarSeed: 'p_devicesecond2',
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('好好吃饭'), findsNWidgets(2));
+      for (final query in ['  SECOND2  ', 'p_devicesecond2']) {
+        await tester.enterText(
+          find.byKey(const ValueKey('session-search')),
+          query,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(SessionListRow), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(SessionListRow),
+            matching: find.text('p_devicesecond2'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('p_devicefirst01'), findsNothing);
+      }
+      await tester.tap(find.byTooltip('复制设备 ID'));
+      await tester.pumpAndSettle();
+      expect(copied, 'p_devicesecond2');
+      expect(tester.takeException(), isNull);
+    });
     testWidgets('搜「张」只剩匹配项', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '张三'),
-          rowOf('b', '李四'),
-          rowOf('c', '张伟'),
-        ])),
+        wrapList(
+          buildList(
+            rows: <SessionRowData>[
+              rowOf('a', '张三'),
+              rowOf('b', '李四'),
+              rowOf('c', '张伟'),
+            ],
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.byType(SessionListRow), findsNWidgets(3));
@@ -110,8 +177,7 @@ void main() {
       expect(find.text('李四'), findsNothing);
     });
 
-    testWidgets('搜索无结果显示专门文案，而不是「暂无会话」',
-        (WidgetTester tester) async {
+    testWidgets('搜索无结果显示专门文案，而不是「暂无会话」', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapList(buildList(rows: <SessionRowData>[rowOf('a', '张三')])),
       );
@@ -127,10 +193,9 @@ void main() {
 
     testWidgets('清空搜索后恢复全部', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '张三'),
-          rowOf('b', '李四'),
-        ])),
+        wrapList(
+          buildList(rows: <SessionRowData>[rowOf('a', '张三'), rowOf('b', '李四')]),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -150,10 +215,14 @@ void main() {
 
     testWidgets('搜索匹配摘要文字也算命中', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '张三', sub: '共享了报告.pdf'),
-          rowOf('b', '李四', sub: '3 项共享'),
-        ])),
+        wrapList(
+          buildList(
+            rows: <SessionRowData>[
+              rowOf('a', '张三', sub: '共享了报告.pdf'),
+              rowOf('b', '李四', sub: '3 项共享'),
+            ],
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -169,10 +238,14 @@ void main() {
   group('未读红点', () {
     testWidgets('unread=5 显示 5；unread=0 不显示', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '有未读', unread: 5),
-          rowOf('b', '没未读', unread: 0),
-        ])),
+        wrapList(
+          buildList(
+            rows: <SessionRowData>[
+              rowOf('a', '有未读', unread: 5),
+              rowOf('b', '没未读', unread: 0),
+            ],
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -180,16 +253,17 @@ void main() {
       // 因此树上只有一个 pill，且文本恰为 "5"。
       expect(find.text('5'), findsOneWidget);
       expect(find.byType(UnreadPill), findsOneWidget);
-      final UnreadPill pill =
-          tester.widget<UnreadPill>(find.byType(UnreadPill));
+      final UnreadPill pill = tester.widget<UnreadPill>(
+        find.byType(UnreadPill),
+      );
       expect(pill.count, 5);
     });
 
     testWidgets('超过 99 显示 99+', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(rows: <SessionRowData>[
-          rowOf('a', '大未读', unread: 250),
-        ])),
+        wrapList(
+          buildList(rows: <SessionRowData>[rowOf('a', '大未读', unread: 250)]),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('99+'), findsOneWidget);
@@ -197,8 +271,9 @@ void main() {
   });
 
   group('hover 与选中底色', () {
-    testWidgets('hover 时行背景为非透明 accent 淡色；移出后恢复透明',
-        (WidgetTester tester) async {
+    testWidgets('hover 时行背景为非透明 accent 淡色；移出后恢复透明', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         wrapList(buildList(rows: <SessionRowData>[rowOf('a', '张三')])),
       );
@@ -206,16 +281,18 @@ void main() {
 
       // 底色现在由行外层的 DecoratedBox 负责（Material 透明），
       // 因为三态底色 + 圆角描边统一在一个 decoration 里，切换不抖动。
-      BoxDecoration decorationOf() => tester
-          .widget<DecoratedBox>(
-            find
-                .descendant(
-                  of: find.byType(SessionListRow),
-                  matching: find.byType(DecoratedBox),
-                )
-                .first,
-          )
-          .decoration as BoxDecoration;
+      BoxDecoration decorationOf() =>
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .descendant(
+                          of: find.byType(SessionListRow),
+                          matching: find.byType(DecoratedBox),
+                        )
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
 
       // 初始：无底色。
       expect(decorationOf().color, isNull);
@@ -227,13 +304,15 @@ void main() {
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
       await tester.pumpAndSettle();
-      final Offset rowCenter =
-          tester.getCenter(find.byKey(const ValueKey<String>('session-row-a')));
+      final Offset rowCenter = tester.getCenter(
+        find.byKey(const ValueKey<String>('session-row-a')),
+      );
       await gesture.moveTo(rowCenter);
       await tester.pumpAndSettle();
 
-      final LanFileTokens tokens =
-          Theme.of(tester.element(find.byType(SessionListRow))).extension<LanFileTokens>()!;
+      final LanFileTokens tokens = Theme.of(
+        tester.element(find.byType(SessionListRow)),
+      ).extension<LanFileTokens>()!;
       final Color? hovered = decorationOf().color;
       expect(hovered, isNotNull, reason: 'hover 必须有可见底色');
       // hover 用 tokens 的 hoverSoft（不是硬编码透明度）。
@@ -247,22 +326,23 @@ void main() {
 
     testWidgets('选中行底色比 hover 更深（透明度更大）', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(buildList(
-          rows: <SessionRowData>[rowOf('a', '张三')],
-          selectedId: 'a',
-        )),
+        wrapList(
+          buildList(rows: <SessionRowData>[rowOf('a', '张三')], selectedId: 'a'),
+        ),
       );
       await tester.pumpAndSettle();
-      final BoxDecoration decoration = tester
-          .widget<DecoratedBox>(
-            find
-                .descendant(
-                  of: find.byType(SessionListRow),
-                  matching: find.byType(DecoratedBox),
-                )
-                .first,
-          )
-          .decoration as BoxDecoration;
+      final BoxDecoration decoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .descendant(
+                          of: find.byType(SessionListRow),
+                          matching: find.byType(DecoratedBox),
+                        )
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
       expect(decoration.color, isNotNull);
       // 选中态是 accentSoft + accent 描边，两者都要有。
       expect(decoration.border, isNotNull, reason: '选中行应有主色描边');
@@ -288,8 +368,11 @@ void main() {
             ? LanFilePalette.dark
             : LanFilePalette.light;
         expect(list.color, equals(expectedTokens.surfaceSunken));
-        expect(list.color, isNot(equals(expectedTokens.bg)),
-            reason: '列表底色必须与内容区底色有可见差异');
+        expect(
+          list.color,
+          isNot(equals(expectedTokens.bg)),
+          reason: '列表底色必须与内容区底色有可见差异',
+        );
       }
     });
 
@@ -313,19 +396,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final BoxDecoration decoration = tester
-            .widget<DecoratedBox>(
-              find
-                  .descendant(
-                    of: find.byType(SessionListRow),
-                    matching: find.byType(DecoratedBox),
-                  )
-                  .first,
-            )
-            .decoration as BoxDecoration;
-        final LanFileTokens tokens =
-            Theme.of(tester.element(find.byType(SessionListRow)))
-                .extension<LanFileTokens>()!;
+        final BoxDecoration decoration =
+            tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: find.byType(SessionListRow),
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        final LanFileTokens tokens = Theme.of(
+          tester.element(find.byType(SessionListRow)),
+        ).extension<LanFileTokens>()!;
         // hover 色随主题变化：明暗两套的 hoverSoft 必须不同。
         expect(decoration.color, equals(tokens.hoverSoft));
         await gesture.removePointer();
@@ -347,14 +432,16 @@ void main() {
 
     testWidgets('空列表显示空态标题与说明', (WidgetTester tester) async {
       await tester.pumpWidget(
-        wrapList(SessionList(
-          title: '附近的人',
-          rows: const <SessionRowData>[],
-          selectedId: null,
-          onSelect: (SessionRowData row) {},
-          emptyTitle: '附近还没有人',
-          emptyBody: '对方可能没开软件，或防火墙拦了 UDP 47777。',
-        )),
+        wrapList(
+          SessionList(
+            title: '附近的人',
+            rows: const <SessionRowData>[],
+            selectedId: null,
+            onSelect: (SessionRowData row) {},
+            emptyTitle: '附近还没有人',
+            emptyBody: '对方可能没开软件，或防火墙拦了 UDP 47777。',
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('附近还没有人'), findsOneWidget);

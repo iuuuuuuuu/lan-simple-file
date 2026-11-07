@@ -17,6 +17,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/contacts/peer_groups.dart';
 import '../widgets/avatar_badge.dart';
 import '../widgets/device_platform_label.dart';
+import '../widgets/device_id_label.dart';
 import 'design.dart';
 
 /// 中栏宽度（与 tokens 的 sessionListWidth 对齐，供外部断言引用）。
@@ -42,6 +43,7 @@ final class SessionRowData {
     this.avatarBytes,
     this.isSelf = false,
     this.os,
+    this.peerId,
   });
 
   /// 稳定标识（用于 Key 与选中判定）。
@@ -70,6 +72,7 @@ final class SessionRowData {
   final Uint8List? avatarBytes;
   final bool isSelf;
   final String? os;
+  final String? peerId;
 }
 
 /// 中栏：搜索 + 列表。
@@ -267,7 +270,7 @@ class _SessionListState extends State<SessionList> {
     super.dispose();
   }
 
-  /// 按标题/摘要做大小写不敏感的子串匹配。
+  /// 按名字、设备 ID 和摘要做大小写不敏感的子串匹配。
   List<SessionRowData> get _filtered {
     final String q = _query.trim();
     if (q.isEmpty) return widget.rows;
@@ -275,6 +278,7 @@ class _SessionListState extends State<SessionList> {
     return <SessionRowData>[
       for (final SessionRowData row in widget.rows)
         if (row.title.toLowerCase().contains(lower) ||
+            (row.peerId?.toLowerCase().contains(lower) ?? false) ||
             row.subtitle.toLowerCase().contains(lower))
           row,
     ];
@@ -505,6 +509,8 @@ class _SessionListRowState extends State<SessionListRow> {
                             ],
                           ),
                           const SizedBox(height: 3),
+                          if (row.peerId != null)
+                            DeviceIdLabel(id: row.peerId!),
                           Row(
                             children: <Widget>[
                               Expanded(

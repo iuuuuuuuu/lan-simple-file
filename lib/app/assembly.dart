@@ -21,6 +21,8 @@ import 'package:lan_simple_file/core/discovery/http_peer_discovery.dart';
 import 'package:lan_simple_file/core/discovery/peer_activity_tracker.dart';
 import 'package:lan_simple_file/core/discovery/peer_key_bootstrap.dart';
 import 'package:lan_simple_file/core/platform/browser_link_policy.dart';
+import 'package:lan_simple_file/core/platform/peer_browser_links.dart';
+import 'package:lan_simple_file/core/net/peer_local_domain.dart';
 import 'package:lan_simple_file/core/files/local_ref_factory.dart';
 import 'package:lan_simple_file/core/files/saf_bridge.dart';
 import 'package:lan_simple_file/core/files/saf_ref_factory.dart';
@@ -216,6 +218,7 @@ final class AppServices {
     this.browserServer,
     this.browserServerError,
     this.httpDiscovery,
+    this.peerBrowserLinks,
     this.browserLinkPolicy = const BrowserLinkPolicy(),
   });
 
@@ -240,6 +243,7 @@ final class AppServices {
   final HttpServerHost? browserServer;
   final String? browserServerError;
   final HttpPeerDiscovery? httpDiscovery;
+  final PeerBrowserLinks? peerBrowserLinks;
   final BrowserLinkPolicy browserLinkPolicy;
   int get browserPort => browserServer?.port ?? port;
 
@@ -387,57 +391,12 @@ final class AppServices {
         '文件提供者已离线',
       );
     }
-    String? domain;
-    int? domainPort;
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
-    try {
-      final request = await client.getUrl(
-        Uri(
-          scheme: 'http',
-          host: endpoint.host,
-          port: endpoint.port,
-          path: '/api/v1/local-domain',
-        ),
-      );
-      request.followRedirects = false;
-      final response = await request.close().timeout(
-        const Duration(seconds: 2),
-      );
-      if (response.statusCode == 200) {
-        final buffer = BytesBuilder();
-        await for (final chunk in response.timeout(
-          const Duration(seconds: 2),
-        )) {
-          if (buffer.length + chunk.length > 4096) {
-            throw const FormatException();
-          }
-          buffer.add(chunk);
-        }
-        final data =
-            jsonDecode(utf8.decode(buffer.takeBytes())) as Map<String, dynamic>;
-        final candidate = data['host'];
-        if (data['ready'] == true &&
-            candidate is String &&
-            isLocalDomain(candidate)) {
-          domain = candidate;
-          final advertisedPort = data['httpPort'];
-          if (advertisedPort is int &&
-              advertisedPort >= 1 &&
-              advertisedPort <= 65535) {
-            domainPort = advertisedPort;
-          }
-        }
-      }
-    } on Object {
-      /* Older clients can still provide an IP link. */
-    } finally {
-      client.close(force: true);
-    }
+    final domain = await fetchPeerLocalDomain(owner, endpoint);
     return buildWebShareUrl(
       host: endpoint.host,
-      port: domainPort ?? endpoint.port,
+      port: domain?.port ?? endpoint.port,
       shareId: share,
-      localDomain: await browserLinkPolicy.domainFor(domain),
+      localDomain: await browserLinkPolicy.domainFor(domain?.host),
     );
   }
 
@@ -500,6 +459,7 @@ final class AppServices {
   final int port;
 
   Future<void> stop() async {
+    await peerBrowserLinks?.dispose();
     await httpDiscovery?.dispose();
     await browserServer?.stop();
     await localDomainChanges?.cancel();
@@ -720,6 +680,7 @@ final class AppAssembler {
       (request) =>
           jsonResponse(request.response, HttpStatus.ok, <String, Object?>{
             'enabled': localDomain != null,
+            'peerId': identity.peerId.value,
             'host': localDomain?.host,
             'address': localDomain?.ip,
             'httpPort': browserServer?.port ?? port,
@@ -889,6 +850,18 @@ final class AppAssembler {
       headersFor: chatAuth.headers,
     );
     if (enableDiscovery) chatConnections.start(discovery.watchPeers());
+    final peerBrowserLinks = enableDiscovery && Platform.isWindows
+        ? PeerBrowserLinks(
+            self: identity.peerId,
+            domainForPeer: (peer) async {
+              final endpoint = await discovery.findEndpoint(peer);
+              return endpoint == null
+                  ? null
+                  : fetchPeerLocalDomain(peer, endpoint, requireIdentity: true);
+            },
+          )
+        : null;
+    peerBrowserLinks?.start(discovery.watchPeers());
     if (enableDiscovery && Platform.isAndroid && lanHost == '10.0.2.15') {
       httpDiscovery.startHostPolling(
         '10.0.2.2',
@@ -977,6 +950,7 @@ final class AppAssembler {
       browserServer: browserServer,
       browserServerError: browserServerError,
       httpDiscovery: httpDiscovery,
+      peerBrowserLinks: peerBrowserLinks,
     );
   }
 }

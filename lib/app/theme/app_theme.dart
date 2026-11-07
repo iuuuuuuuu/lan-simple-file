@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tokens.dart';
@@ -27,20 +28,20 @@ enum AppThemeMode {
 extension AppThemeModeX on AppThemeMode {
   /// 传给 MaterialApp 的 ThemeMode。
   ThemeMode get themeMode => switch (this) {
-        AppThemeMode.system => ThemeMode.system,
-        AppThemeMode.light => ThemeMode.light,
-        AppThemeMode.dark => ThemeMode.dark,
-      };
+    AppThemeMode.system => ThemeMode.system,
+    AppThemeMode.light => ThemeMode.light,
+    AppThemeMode.dark => ThemeMode.dark,
+  };
 
   /// 用于设置项的稳定字符串。
   String get storageKey => name;
 
   /// 界面上的短标签。
   String get label => switch (this) {
-        AppThemeMode.system => '跟随系统',
-        AppThemeMode.light => '明色',
-        AppThemeMode.dark => '暗色',
-      };
+    AppThemeMode.system => '跟随系统',
+    AppThemeMode.light => '明色',
+    AppThemeMode.dark => '暗色',
+  };
 
   /// 从设置项字符串解析；无法识别时回落到跟随系统。
   static AppThemeMode parse(String? raw) {
@@ -93,10 +94,7 @@ abstract final class AppTheme {
       platform: TargetPlatform.windows,
       colorScheme: scheme,
     ).black;
-    final TextTheme textTheme = base.apply(
-      bodyColor: t.fg,
-      displayColor: t.fg,
-    );
+    final TextTheme textTheme = base.apply(bodyColor: t.fg, displayColor: t.fg);
 
     return ThemeData(
       brightness: t.brightness,
@@ -107,6 +105,11 @@ abstract final class AppTheme {
       textTheme: textTheme,
       extensions: <ThemeExtension<dynamic>>[t],
       appBarTheme: AppBarTheme(
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemStatusBarContrastEnforced: false,
+        ),
         backgroundColor: t.bg,
         foregroundColor: t.fg,
         surfaceTintColor: Colors.transparent,
@@ -176,9 +179,7 @@ abstract final class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: t.accent,
           foregroundColor: onAccent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -188,9 +189,7 @@ abstract final class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: t.fg,
           side: BorderSide(color: t.line),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       inputDecorationTheme: InputDecorationThemeData(
@@ -307,8 +306,8 @@ final class ThemeModeController extends Notifier<AppThemeMode> {
 /// 全局主题模式。
 final NotifierProvider<ThemeModeController, AppThemeMode> themeModeProvider =
     NotifierProvider<ThemeModeController, AppThemeMode>(
-  ThemeModeController.new,
-);
+      ThemeModeController.new,
+    );
 
 /// 主题模式持久化实现；接入 store 时在 ProviderScope 里覆盖它。
 ///

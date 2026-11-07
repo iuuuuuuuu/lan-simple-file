@@ -14,6 +14,7 @@ import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
 import '../../core/contracts/contracts.dart';
 import 'device_platform_label.dart';
+import 'device_id_label.dart';
 
 /// 在线状态点的两种形态。
 enum PeerDotStyle {
@@ -100,6 +101,7 @@ class PeerCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 2),
+                      DeviceIdLabel(id: peer.peerId.value),
                       Text(
                         _subtitle(peer),
                         maxLines: 1,

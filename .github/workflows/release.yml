@@ -138,6 +138,8 @@ jobs:
             echo 'Release registration must not include the integration test plugin.'
             exit 1
           fi
+      - name: Android native device-name regression
+        run: cd android && ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-x64
       - name: Build signed APKs
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

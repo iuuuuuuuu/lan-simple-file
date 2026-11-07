@@ -29,6 +29,7 @@ final class DemoSource implements ShellSessionSource {
         return <SessionRowData>[
           SessionRowData(
             id: 'p_aaaaaaaaaaaaa',
+            peerId: 'p_aaaaaaaaaaaaa',
             title: 'YG 的台式机',
             avatarSeed: 'p_7fk3m9x2a1c01',
             subtitle: '7 项共享',
@@ -38,6 +39,7 @@ final class DemoSource implements ShellSessionSource {
           ),
           SessionRowData(
             id: 'p2',
+            peerId: 'p_7fk3m9x2a1c02',
             title: '小米手机',
             avatarSeed: 'p_7fk3m9x2a1c02',
             subtitle: '3 项共享',
@@ -48,6 +50,7 @@ final class DemoSource implements ShellSessionSource {
           ),
           SessionRowData(
             id: 'p3',
+            peerId: 'p_7fk3m9x2a1c03',
             title: '客厅笔电',
             avatarSeed: 'p_7fk3m9x2a1c03',
             subtitle: '离线 · 暂无共享',
@@ -57,6 +60,7 @@ final class DemoSource implements ShellSessionSource {
           ),
           SessionRowData(
             id: 'p4',
+            peerId: 'p_7fk3m9x2a1c04',
             title: '开发机',
             avatarSeed: 'p_7fk3m9x2a1c04',
             subtitle: '12 项共享',
@@ -106,8 +110,9 @@ Future<void> pumpDemo(
   required Brightness brightness,
   ShellSection section = ShellSection.nearby,
   ChatTestService? messaging,
+  Size size = const Size(1280, 800),
 }) async {
-  tester.view.physicalSize = const Size(1280, 800);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -159,6 +164,21 @@ void main() {
   setUpAll(() async {
     await loadGoldenFonts();
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets('手机 ID 列表 ${brightness.name}', (tester) async {
+      await pumpDemo(
+        tester,
+        brightness: brightness,
+        size: const Size(360, 800),
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byType(QqShell),
+        matchesGoldenFile('goldens/nearby_mobile_${brightness.name}.png'),
+      );
+    });
+  }
 
   testWidgets('演示数据里的未读数确实渲染为 5 与 99+（防止截图误读）', (WidgetTester tester) async {
     await pumpDemo(tester, brightness: Brightness.light);

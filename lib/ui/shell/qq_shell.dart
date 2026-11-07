@@ -11,6 +11,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -110,6 +111,7 @@ final class ServiceShellSessionSource implements ShellSessionSource {
                   .firstOrNull;
               return SessionRowData(
                 id: peer.peerId.value,
+                peerId: peer.peerId.value,
                 title: peer.name.isEmpty ? peer.peerId.value : peer.name,
                 avatarSeed: peer.peerId.value,
                 subtitle: thread?.lastMsgPreview?.isNotEmpty == true
@@ -718,7 +720,7 @@ class _QqShellState extends State<QqShell> {
         ),
       ),
     );
-    if (!mobile) {
+    if (!mobile && !Platform.isAndroid) {
       return AbsorbPointer(
         absorbing: _uploading || _choosingUpload,
         child: shell,
@@ -768,6 +770,7 @@ class _QqShellState extends State<QqShell> {
             final List<SessionRowData> data =
                 snapshot.data ?? const <SessionRowData>[];
             return SessionList(
+              hint: _section == ShellSection.nearby ? '搜索名字或设备 ID' : '搜索',
               title: _source?.titleFor(_section) ?? _section.label,
               rows: data,
               selectedId: _selectedRowId,

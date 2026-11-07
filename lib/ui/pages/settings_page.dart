@@ -14,6 +14,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
+import '../widgets/device_id_label.dart';
+
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../../app/assembly.dart';
@@ -940,11 +943,7 @@ class _ProfileCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                SelectableText(
-                  s.peerId,
-                  maxLines: 1,
-                  style: TextStyle(fontSize: 11.5, color: tokens.fgDim),
-                ),
+                DeviceIdLabel(id: s.peerId),
               ],
             ),
           ),

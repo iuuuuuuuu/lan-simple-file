@@ -2,12 +2,16 @@
 package com.lansimplefile.lan_simple_file
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
 import com.lansimplefile.lan_simple_file.saf.SafBridgeHandler
 import com.lansimplefile.lan_simple_file.service.ForegroundChannelHandler
 import com.lansimplefile.lan_simple_file.service.ShareIntentHandler
+import com.lansimplefile.lan_simple_file.service.MulticastLockHolder
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,6 +24,7 @@ class MainActivity : FlutterActivity() {
 
     private var shareIntent: ShareIntentHandler? = null
     private var deviceInfo: MethodChannel? = null
+    private val discoveryMulticast by lazy { MulticastLockHolder(applicationContext) }
 
     /**
      * 冷启动那一刻的 SEND intent。
@@ -33,6 +38,16 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         launchIntent = intent
         super.onCreate(savedInstanceState)
+        // Keep transparent native defaults with targetSdk 34 too: Flutter skips
+        // its Dart statusBarColor setter on Android 15 and newer.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        @Suppress("DEPRECATION")
+        window.statusBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -45,15 +60,14 @@ class MainActivity : FlutterActivity() {
             channel.setMethodCallHandler { call, result ->
                 if (call.method == "getDeviceName") {
                     val resolver = applicationContext.contentResolver
-                    val configured = try {
-                        Settings.Global.getString(resolver, "device_name")
-                            ?.takeIf { it.isNotBlank() && it != "null" }
-                            ?: Settings.Secure.getString(resolver, "bluetooth_name")
-                                ?.takeIf { it.isNotBlank() && it != "null" }
-                    } catch (_: SecurityException) {
-                        null
-                    }
-                    result.success(configured ?: Build.MODEL.takeIf { it.isNotBlank() } ?: "Android")
+                    result.success(resolveDeviceName(Build.MODEL, listOf(
+                        { Settings.System.getString(resolver, "device_name") },
+                        { Settings.Global.getString(resolver, "device_name") },
+                        { Settings.Secure.getString(resolver, "device_name") },
+                        { Settings.Secure.getString(resolver, "bluetooth_name") },
+                        { Settings.System.getString(resolver, "bluetooth_name") },
+                        { Settings.Global.getString(resolver, "bluetooth_name") },
+                    )))
                 } else {
                     result.notImplemented()
                 }
@@ -77,6 +91,16 @@ class MainActivity : FlutterActivity() {
         // 冷启动分享：此时通道已就绪，可以安全挂起等 Dart 来取。
         intentHandler.acceptIntent(launchIntent ?: intent)
         launchIntent = null
+    }
+
+    override fun onStart() {
+        super.onStart()
+        discoveryMulticast.sync(true)
+    }
+
+    override fun onStop() {
+        discoveryMulticast.sync(false)
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
