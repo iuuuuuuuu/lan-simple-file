@@ -8,6 +8,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/shell/qq_shell.dart';
@@ -26,12 +29,13 @@ final class EmptySource implements ShellSessionSource {
 }
 
 Widget wrapShell({Brightness brightness = Brightness.light}) => MaterialApp(
-      theme: AppTheme.of(LanFilePalette.of(brightness)),
-      home: QqShell(
-        sessionSource: EmptySource(),
-        enableDragDrop: false, // 拖拽关闭，避免注册平台监听
-      ),
-    );
+  builder: (context, child) => AppMiuixTheme(child: child!),
+  theme: AppTheme.of(LanFilePalette.of(brightness)),
+  home: QqShell(
+    sessionSource: EmptySource(),
+    enableDragDrop: false, // 拖拽关闭，避免注册平台监听
+  ),
+);
 
 void main() {
   tearDown(AppToast.dismiss);
@@ -46,16 +50,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // 顶部条还在（放抽屉入口与标题），但只剩标题与菜单，没有提示区。
-      final Finder topBar =
-          find.byKey(const ValueKey<String>('shell-top-bar'));
+      final Finder topBar = find.byKey(const ValueKey<String>('shell-top-bar'));
       expect(topBar, findsOneWidget);
 
       // 顶部条内不应有「关闭提示」按钮——那是旧实现留下的痕迹。
       expect(
-        find.descendant(
-          of: topBar,
-          matching: find.byTooltip('关闭提示'),
-        ),
+        find.descendant(of: topBar, matching: findAppTooltip('关闭提示')),
         findsNothing,
       );
       // 顶部条内也不该出现 AppToast。
@@ -68,8 +68,7 @@ void main() {
       );
     });
 
-    testWidgets('拖入结果是浮层 Toast，而不是顶部条文本',
-        (WidgetTester tester) async {
+    testWidgets('拖入结果是浮层 Toast，而不是顶部条文本', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -116,19 +115,12 @@ void main() {
       final BuildContext ctx = tester.element(
         find.byKey(const ValueKey<String>('shell-top-bar')),
       );
-      AppToast.show(
-        ctx,
-        '已创建 1 个共享，1 个失败：照片.jpg — 路径不存在',
-        isError: true,
-      );
+      AppToast.show(ctx, '已创建 1 个共享，1 个失败：照片.jpg — 路径不存在', isError: true);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
       // 失败文案必须带具体原因，不能只说「失败」。
-      expect(
-        find.textContaining('照片.jpg — 路径不存在'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('照片.jpg — 路径不存在'), findsOneWidget);
       // 且不在顶部条。
       expect(
         find.descendant(
@@ -146,10 +138,13 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.of(LanFilePalette.light),
-        home: const QqShell(services: null, enableDragDrop: false),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => AppMiuixTheme(child: child!),
+          theme: AppTheme.of(LanFilePalette.light),
+          home: const QqShell(services: null, enableDragDrop: false),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);

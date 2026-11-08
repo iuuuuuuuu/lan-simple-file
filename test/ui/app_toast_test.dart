@@ -8,6 +8,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/widgets/app_toast.dart';
@@ -27,14 +30,14 @@ class _Host extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      builder: (context, child) => AppMiuixTheme(child: child!),
       theme: AppTheme.of(LanFilePalette.of(brightness)),
-      home: Scaffold(
+      home: AppScaffold(
         body: Builder(
           builder: (BuildContext ctx) => Center(
             child: ElevatedButton(
               key: const ValueKey<String>('trigger'),
-              onPressed: () =>
-                  AppToast.show(ctx, message, isError: isError),
+              onPressed: () => AppToast.show(ctx, message, isError: isError),
               child: const Text('触发'),
             ),
           ),
@@ -78,16 +81,15 @@ void main() {
       expect(buttonAfter, equals(buttonBefore));
     });
 
-    testWidgets('Toast 定位在底部附近（距底约 48px）',
-        (WidgetTester tester) async {
+    testWidgets('Toast 定位在底部附近（距底约 48px）', (WidgetTester tester) async {
       await tester.pumpWidget(const _Host(message: '提示'));
       await _trigger(tester);
 
       final Rect toast = tester.getRect(
         find.byKey(const ValueKey<String>('app-toast')),
       );
-      final double screenBottom = tester.view.physicalSize.height /
-          tester.view.devicePixelRatio;
+      final double screenBottom =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
       final double gap = screenBottom - toast.bottom;
       // 允许一点误差：卡片内部有 padding，允许 ±20px 的窗口。
       expect(gap, closeTo(kToastBottomInset, 20));
@@ -103,8 +105,7 @@ void main() {
 
       // 累计 200 + 2200 = 2400ms，仍未到 2500ms。
       await tester.pump(const Duration(milliseconds: 2200));
-      expect(find.text('成功'), findsOneWidget,
-          reason: '2.4s 时还不该消失');
+      expect(find.text('成功'), findsOneWidget, reason: '2.4s 时还不该消失');
 
       // 累计 200 + 2200 + 200 = 2600ms，已过 2500ms。
       await tester.pump(const Duration(milliseconds: 200));
@@ -123,8 +124,7 @@ void main() {
 
       // 累计 200 + 2800 = 3000ms：成功态早在 2500ms 就该没了，失败态仍在。
       await tester.pump(const Duration(milliseconds: 2800));
-      expect(find.text('失败原因：路径不存在'), findsOneWidget,
-          reason: '失败提示要比成功停留更久');
+      expect(find.text('失败原因：路径不存在'), findsOneWidget, reason: '失败提示要比成功停留更久');
 
       // 累计 200 + 2800 + 2200 = 5200ms，已过 5000ms。
       await tester.pump(const Duration(milliseconds: 2200));
@@ -159,7 +159,7 @@ void main() {
       expect(find.text('第一条'), findsOneWidget);
 
       // 换文案再触发一次（通过同一个宿主重建不方便，直接调静态入口）。
-      final BuildContext ctx = tester.element(find.byType(Scaffold));
+      final BuildContext ctx = tester.element(find.byType(AppScaffold));
       AppToast.show(ctx, '第二条');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
@@ -173,7 +173,7 @@ void main() {
     testWidgets('替换后旧定时器不会误删新提示', (WidgetTester tester) async {
       await tester.pumpWidget(const _Host(message: '旧'));
       await _trigger(tester);
-      final BuildContext ctx = tester.element(find.byType(Scaffold));
+      final BuildContext ctx = tester.element(find.byType(AppScaffold));
 
       // 此时旧提示已过 200ms。立刻换成新的：新的从这一刻重新计时。
       AppToast.show(ctx, '新');
@@ -184,8 +184,7 @@ void main() {
       // 再过 2000ms（新提示累计 2200ms）：旧提示的 2500ms 早已到期，
       // 但新提示必须还活着——证明旧的到期逻辑不会误杀新提示。
       await tester.pump(const Duration(milliseconds: 2000));
-      expect(find.text('新'), findsOneWidget,
-          reason: '旧提示到期不应关掉新提示');
+      expect(find.text('新'), findsOneWidget, reason: '旧提示到期不应关掉新提示');
 
       // 新提示累计 2200 + 500 = 2700ms，超过自己的 2500ms，正常消失。
       await tester.pump(const Duration(milliseconds: 500));
@@ -195,8 +194,7 @@ void main() {
   });
 
   group('单主色约束', () {
-    testWidgets('成功与失败都不引入红/绿，图标形状不同',
-        (WidgetTester tester) async {
+    testWidgets('成功与失败都不引入红/绿，图标形状不同', (WidgetTester tester) async {
       // 成功
       await tester.pumpWidget(const _Host(message: '成功'));
       await _trigger(tester);
@@ -214,9 +212,7 @@ void main() {
       await tester.pump();
 
       // 失败
-      await tester.pumpWidget(
-        const _Host(message: '失败', isError: true),
-      );
+      await tester.pumpWidget(const _Host(message: '失败', isError: true));
       await _trigger(tester);
       final Iterable<Icon> errorIcons = tester.widgetList<Icon>(
         find.descendant(
@@ -230,12 +226,9 @@ void main() {
       expect(errorMark.icon, Icons.error_outline);
     });
 
-    testWidgets('成功/失败的文字颜色都取自 token，不是红或绿',
-        (WidgetTester tester) async {
+    testWidgets('成功/失败的文字颜色都取自 token，不是红或绿', (WidgetTester tester) async {
       for (final bool isError in <bool>[false, true]) {
-        await tester.pumpWidget(
-          _Host(message: 'msg', isError: isError),
-        );
+        await tester.pumpWidget(_Host(message: 'msg', isError: isError));
         await _trigger(tester);
 
         final LanFileTokens tokens = Theme.of(
@@ -243,10 +236,12 @@ void main() {
         ).extension<LanFileTokens>()!;
 
         final Text text = tester.widget<Text>(
-          find.descendant(
-            of: find.byKey(const ValueKey<String>('app-toast')),
-            matching: find.byType(Text),
-          ).last,
+          find
+              .descendant(
+                of: find.byKey(const ValueKey<String>('app-toast')),
+                matching: find.byType(Text),
+              )
+              .last,
         );
         // 正文用 token 的 fg；既不是纯红也不是纯绿。
         expect(text.style!.color, equals(tokens.fg));
@@ -258,14 +253,15 @@ void main() {
       }
     });
 
-    testWidgets('失败字重比成功更重（可断言的视觉差异）',
-        (WidgetTester tester) async {
+    testWidgets('失败字重比成功更重（可断言的视觉差异）', (WidgetTester tester) async {
       FontWeight weightOf(WidgetTester t) {
         final Text text = t.widget<Text>(
-          find.descendant(
-            of: find.byKey(const ValueKey<String>('app-toast')),
-            matching: find.byType(Text),
-          ).last,
+          find
+              .descendant(
+                of: find.byKey(const ValueKey<String>('app-toast')),
+                matching: find.byType(Text),
+              )
+              .last,
         );
         return text.style!.fontWeight!;
       }
@@ -285,8 +281,7 @@ void main() {
   });
 
   group('不受界面动画影响', () {
-    testWidgets('pumpAndSettle（别处动画收尾）不会顺手关掉提示',
-        (WidgetTester tester) async {
+    testWidgets('pumpAndSettle（别处动画收尾）不会顺手关掉提示', (WidgetTester tester) async {
       // 真实场景：用户正在读提示，页面别处一个动画结束。
       // 若自动消失由 AnimationController 驱动，pumpAndSettle 会把它一路推到结束，
       // 提示被无辜顶掉——必须用按真实时间走的 Timer 才不受影响。
@@ -302,8 +297,7 @@ void main() {
       expect(AppToast.isShowing, isTrue);
     });
 
-    testWidgets('pumpAndSettle 之后，提示仍按自己的时长到期',
-        (WidgetTester tester) async {
+    testWidgets('pumpAndSettle 之后，提示仍按自己的时长到期', (WidgetTester tester) async {
       await tester.pumpWidget(const _Host(message: '按时间走'));
       await tester.tap(find.byKey(const ValueKey<String>('trigger')));
       await tester.pumpAndSettle();
@@ -319,24 +313,16 @@ void main() {
   group('明暗主题', () {
     testWidgets('Toast 底色随主题取对应 surface', (WidgetTester tester) async {
       for (final Brightness brightness in Brightness.values) {
-        await tester.pumpWidget(
-          _Host(message: '主题', brightness: brightness),
-        );
+        await tester.pumpWidget(_Host(message: '主题', brightness: brightness));
         await _trigger(tester);
 
-        final Container card = tester.widget<Container>(
-          find
-              .descendant(
-                of: find.byKey(const ValueKey<String>('app-toast')),
-                matching: find.byType(Container),
-              )
-              .first,
+        final MiuixCard card = tester.widget<MiuixCard>(
+          find.byKey(const ValueKey('app-toast')),
         );
         final LanFileTokens expected = brightness == Brightness.dark
             ? LanFilePalette.dark
             : LanFilePalette.light;
-        expect((card.decoration! as BoxDecoration).color,
-            equals(expected.surface));
+        expect(card.colors!.color, equals(expected.surface));
 
         AppToast.dismiss();
         await tester.pump();
@@ -345,8 +331,7 @@ void main() {
   });
 
   group('无 Overlay 的降级', () {
-    testWidgets('context 之上没有 Overlay 时不抛，只是不显示',
-        (WidgetTester tester) async {
+    testWidgets('context 之上没有 Overlay 时不抛，只是不显示', (WidgetTester tester) async {
       late BuildContext bare;
       await tester.pumpWidget(
         Directionality(
@@ -360,10 +345,7 @@ void main() {
         ),
       );
       // 没有 MaterialApp/Overlay：不能崩，也不能假装显示成功。
-      expect(
-        () => AppToast.show(bare, '无宿主'),
-        returnsNormally,
-      );
+      expect(() => AppToast.show(bare, '无宿主'), returnsNormally);
       expect(AppToast.isShowing, isFalse);
     });
   });

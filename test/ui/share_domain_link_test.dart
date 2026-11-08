@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/assembly.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/net/local_domain.dart';
@@ -131,16 +134,16 @@ void main() {
       await _settleIo(tester);
       expect(find.text('http://alice.local/'), findsOneWidget);
       expect(find.textContaining('10.1.2.3'), findsNothing);
-      await tester.tap(find.byTooltip('复制我的分享地址'));
+      await tester.tap(findAppTooltip('复制我的分享地址'));
       await tester.pump();
       expect(copied, ['http://alice.local/']);
-      await tester.tap(find.byTooltip('我的分享二维码'));
+      await tester.tap(findAppTooltip('我的分享二维码'));
       await tester.pumpAndSettle();
       expect(
         tester.widget<QrPanel>(find.byType(QrPanel)).linkText,
         'http://alice.local/',
       );
-      await tester.tap(find.byTooltip('关闭'));
+      await tester.tap(findAppTooltip('关闭'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('share-actions-menu')));
       await tester.pumpAndSettle();

@@ -177,6 +177,72 @@ void main() {
   });
 
   group('browse 分页', () {
+    test('SAF indexed root and nested folders retain full document IDs', () async {
+      final id = ShareId.parse('saf_index');
+      const root = 'primary:DCIM/Camera';
+      await fx.store.upsertShare(
+        ShareRecord(
+          id: id,
+          kind: 'folder',
+          rootKind: 'safTree',
+          rootUri:
+              'content://com.android.externalstorage.documents/tree/${Uri.encodeComponent(root)}',
+          displayName: 'Camera',
+          ownerPeerId: fx.identity.peerId,
+          createdAt: kFixtureNow,
+          mode: ShareMode.lan,
+          enabled: true,
+          missing: false,
+          isEphemeral: false,
+        ),
+      );
+      await fx.store.putItems([
+        for (final key in [
+          '$root/a.txt',
+          '$root/z-folder',
+          '$root/z-folder/b.txt',
+        ])
+          ShareItemRecord(
+            shareId: id,
+            itemKey: ItemKey.parse(key),
+            size: 0,
+            isDir: key.endsWith('z-folder'),
+          ),
+      ]);
+      final service = fx.service();
+      final entries = await drainAll(service, id, limit: 1);
+      expect(entries.map((e) => e.itemKey.value), [
+        '$root/z-folder',
+        '$root/a.txt',
+      ]);
+      final children = await drainAll(
+        service,
+        id,
+        path: ItemKey.parse('$root/z-folder'),
+        limit: 1,
+      );
+      expect(children.single.itemKey.value, '$root/z-folder/b.txt');
+    });
+
+    test('indexed browse places folders first across one-item pages', () async {
+      final tree = Directory(p.join(fx.sandbox.path, 'ordered'))..createSync();
+      Directory(p.join(tree.path, 'z-folder')).createSync();
+      File(p.join(tree.path, 'a.txt')).writeAsStringSync('a');
+      File(p.join(tree.path, 'b.txt')).writeAsStringSync('b');
+      final service = fx.service();
+      final record = await service.create(
+        CreateShareRequest(
+          rootKind: ShareRootKind.localPath,
+          rootUri: tree.path,
+          displayName: 'ordered',
+          mode: ShareMode.lan,
+        ),
+      );
+      await service.awaitIndex(record.id);
+      final entries = await drainAll(service, record.id, limit: 1);
+      expect(entries.map((e) => e.name), ['z-folder', 'a.txt', 'b.txt']);
+    });
+
     test('三层树：逐层翻页不重不漏', () async {
       final Directory tree = fx.makeTree('browse', filesPerDir: 5, depth: 2);
       final ShareServiceImpl service = fx.service();
@@ -197,11 +263,14 @@ void main() {
         limit: 2,
       );
       expect(rootEntries.length, 6);
-      expect(
-        rootEntries.map((TreeEntryView e) => e.name).toList(),
-        <String>['d0', 'f0_0.txt', 'f0_1.txt', 'f0_2.txt', 'f0_3.txt', 'f0_4.txt'],
-        reason: '必须按 name 升序',
-      );
+      expect(rootEntries.map((TreeEntryView e) => e.name).toList(), <String>[
+        'd0',
+        'f0_0.txt',
+        'f0_1.txt',
+        'f0_2.txt',
+        'f0_3.txt',
+        'f0_4.txt',
+      ], reason: '必须按 name 升序');
 
       // 整棵树：递归收集，断言不重复且总数对得上。
       final Set<String> seen = <String>{};
@@ -251,10 +320,10 @@ void main() {
 
       final ({List<TreeEntryView> entries, String? nextCursor}) second =
           await service.browse(record.id, cursor: first.nextCursor, limit: 2);
-      expect(
-        second.entries.map((TreeEntryView e) => e.name).toList(),
-        <String>['n2', 'n3'],
-      );
+      expect(second.entries.map((TreeEntryView e) => e.name).toList(), <String>[
+        'n2',
+        'n3',
+      ]);
     });
 
     test('limit 默认取 LanFileConstants.treePageSize', () async {
@@ -328,8 +397,7 @@ void main() {
     test('中文目录名：前缀按 rune 算，不错位到别的子树', () async {
       final Directory tree = Directory(p.join(fx.sandbox.path, 'cn'))
         ..createSync();
-      final Directory cn = Directory(p.join(tree.path, '中文 目录'))
-        ..createSync();
+      final Directory cn = Directory(p.join(tree.path, '中文 目录'))..createSync();
       File(p.join(cn.path, '甲.txt')).writeAsStringSync('jia');
       File(p.join(cn.path, '乙.txt')).writeAsStringSync('yi');
       // 同名前半段的兄弟目录，专门用来抓前缀错位。
@@ -350,11 +418,10 @@ void main() {
 
       final ({List<TreeEntryView> entries, String? nextCursor}) page =
           await service.browse(record.id, path: ItemKey.parse('中文 目录'));
-      expect(
-        page.entries.map((TreeEntryView e) => e.name).toList(),
-        <String>['乙.txt', '甲.txt'],
-        reason: '只应看到该目录自己的两项，不能串到「中文 目录二」',
-      );
+      expect(page.entries.map((TreeEntryView e) => e.name).toList(), <String>[
+        '乙.txt',
+        '甲.txt',
+      ], reason: '只应看到该目录自己的两项，不能串到「中文 目录二」');
     });
 
     test('limit <= 0 → invalidArgument', () async {
@@ -527,11 +594,7 @@ void main() {
         ),
       );
       final ShareRecord after = (await fx.store.findShare(record.id))!;
-      expect(
-        p.equals(after.rootUri, tree.path),
-        isTrue,
-        reason: '失败不应改库',
-      );
+      expect(p.equals(after.rootUri, tree.path), isTrue, reason: '失败不应改库');
     });
   });
 
@@ -561,8 +624,9 @@ void main() {
       final ShareRecord after = (await fx.store.findShare(record.id))!;
       expect(after.missing, isTrue, reason: '源没了必须置 missing');
 
-      final List<SharedRootView> views =
-          await service.listPeerShares(fx.identity.peerId);
+      final List<SharedRootView> views = await service.listPeerShares(
+        fx.identity.peerId,
+      );
       expect(views.single.available, isFalse);
       expect(views.single.offlineHint, isNotNull);
       expect(views.single.offlineHint, isNotEmpty);
@@ -600,8 +664,9 @@ void main() {
     test('全部可用时 available=true 且 offlineHint 为 null', () async {
       await seedShare(id: 'ok-0001', enabled: true, missing: false);
       fx.probe.setOnline(fx.otherIdentity.peerId, online: true);
-      final List<SharedRootView> views =
-          await fx.service().listPeerShares(fx.otherIdentity.peerId);
+      final List<SharedRootView> views = await fx.service().listPeerShares(
+        fx.otherIdentity.peerId,
+      );
       expect(views.single.available, isTrue);
       expect(views.single.offlineHint, isNull);
     });
@@ -615,10 +680,9 @@ void main() {
         DateTime.utc(2026, 1, 1, 0, 3),
       );
       final DateTime now = DateTime.utc(2026, 1, 1, 0, 6);
-      final List<SharedRootView> views =
-          await fx.service(clock: () => now).listPeerShares(
-        fx.otherIdentity.peerId,
-      );
+      final List<SharedRootView> views = await fx
+          .service(clock: () => now)
+          .listPeerShares(fx.otherIdentity.peerId);
       expect(views.single.available, isFalse);
       final String hint = views.single.offlineHint!;
       expect(hint, isNotEmpty);
@@ -628,8 +692,9 @@ void main() {
     });
     test('原因二：已停用 → 含「停止共享」的中文提示', () async {
       await seedShare(id: 'dis-0001', enabled: false, missing: false);
-      final List<SharedRootView> views =
-          await fx.service().listPeerShares(fx.otherIdentity.peerId);
+      final List<SharedRootView> views = await fx.service().listPeerShares(
+        fx.otherIdentity.peerId,
+      );
       expect(views.single.available, isFalse);
       final String hint = views.single.offlineHint!;
       expect(hint, isNotEmpty);
@@ -638,8 +703,9 @@ void main() {
 
     test('原因三：源已失效 → 含「失效」的中文提示', () async {
       await seedShare(id: 'mis-0001', enabled: true, missing: true);
-      final List<SharedRootView> views =
-          await fx.service().listPeerShares(fx.otherIdentity.peerId);
+      final List<SharedRootView> views = await fx.service().listPeerShares(
+        fx.otherIdentity.peerId,
+      );
       expect(views.single.available, isFalse);
       final String hint = views.single.offlineHint!;
       expect(hint, isNotEmpty);
@@ -653,8 +719,9 @@ void main() {
         missing: false,
         revokedAt: DateTime.utc(2026, 1, 2),
       );
-      final List<SharedRootView> views =
-          await fx.service().listPeerShares(fx.otherIdentity.peerId);
+      final List<SharedRootView> views = await fx.service().listPeerShares(
+        fx.otherIdentity.peerId,
+      );
       expect(views.single.available, isFalse);
       final String hint = views.single.offlineHint!;
       expect(hint, isNotEmpty);
@@ -736,7 +803,9 @@ void main() {
 
     test('token 模式：带凭证，且凭证能被离线验签通过', () async {
       final ShareRecord record = await seededShare(ShareMode.token, 'lnk-0002');
-      final Uri link = await fx.service(clock: () => kFixtureNow).buildLink(record.id);
+      final Uri link = await fx
+          .service(clock: () => kFixtureNow)
+          .buildLink(record.id);
       final String text = link.toString();
       final String? token = link.queryParameters['k'];
       expect(token, isNotNull);

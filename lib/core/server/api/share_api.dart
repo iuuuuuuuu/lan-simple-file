@@ -117,14 +117,14 @@ Future<ShareTarget> requireShare(ShareSource source, String rawShareId) async {
 ///
 /// 空路径表示分享根本身（itemKey 为 rootItemKey）。
 /// 解出的键仍要经 [normalizeItemKey] 复核一次，双保险。
-ItemKey decodeSharePath(String rawTail) {
+ItemKey decodeSharePath(String rawTail, {bool alreadyDecoded = false}) {
   if (rawTail.length > kMaxEncodedPathLength) {
     throw const LanFileException(LanFileErrorCode.invalidArgument, '路径过长');
   }
   final String decoded;
   try {
     // decodeFull 不做 '+' -> ' ' 的表单式转换，路径里 '+' 是普通字符。
-    decoded = Uri.decodeFull(rawTail);
+    decoded = alreadyDecoded ? rawTail : Uri.decodeFull(rawTail);
   } on ArgumentError {
     throw const LanFileException(LanFileErrorCode.invalidArgument, '路径百分号编码非法');
   } on FormatException {
@@ -209,7 +209,8 @@ Future<FileRef> resolveShareItem(ShareTarget target, ItemKey key) async {
 
 Future<FileRef> _resolve(FileRef root, ItemKey key) {
   final String rootKey = root.itemKey.value;
-  if (!root.isDirectory && key.value == rootItemKey) {
+  // The public root sentinel also addresses provider roots such as primary:1.
+  if (key.value == rootItemKey) {
     return Future<FileRef>.value(root);
   }
   if (key.value == rootKey) {

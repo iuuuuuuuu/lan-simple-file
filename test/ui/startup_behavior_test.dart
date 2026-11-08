@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/core/store/store_impl.dart';
 import 'package:lan_simple_file/ui/shell/startup_behavior.dart';
@@ -166,18 +169,22 @@ void main() {
     addTearDown(behavior.dispose);
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => AppMiuixTheme(child: child!),
         theme: AppTheme.light,
-        home: Scaffold(body: SilentStartupSetting(behavior: behavior)),
+        home: AppScaffold(body: SilentStartupSetting(behavior: behavior)),
       ),
     );
-    await tester.tap(find.byType(Switch));
+    await tester.tap(find.byType(MiuixSwitch));
     await tester.pump();
     expect(writes, ['true']);
     expect(behavior.value, isFalse);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+    expect(
+      tester.widget<MiuixSwitch>(find.byType(MiuixSwitch)).onChanged,
+      isNull,
+    );
     saved.complete();
     await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(tester.widget<MiuixSwitch>(find.byType(MiuixSwitch)).value, isTrue);
   });
 
   testWidgets('save failure keeps preference and shows error', (tester) async {
@@ -188,14 +195,18 @@ void main() {
     addTearDown(behavior.dispose);
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => AppMiuixTheme(child: child!),
         theme: AppTheme.light,
-        home: Scaffold(body: SilentStartupSetting(behavior: behavior)),
+        home: AppScaffold(body: SilentStartupSetting(behavior: behavior)),
       ),
     );
-    await tester.tap(find.byType(Switch));
+    await tester.tap(find.byType(MiuixSwitch));
     await tester.pumpAndSettle();
     expect(behavior.value, isFalse);
     expect(find.textContaining('disk full'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNotNull);
+    expect(
+      tester.widget<MiuixSwitch>(find.byType(MiuixSwitch)).onChanged,
+      isNotNull,
+    );
   });
 }

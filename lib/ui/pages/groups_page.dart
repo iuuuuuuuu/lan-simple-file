@@ -10,6 +10,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../widgets/app_controls.dart';
+
 import '../../app/assembly.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
@@ -168,7 +170,7 @@ class _GroupsPageState extends State<GroupsPage> {
       builder:
           (BuildContext context, AsyncSnapshot<List<GroupThreadRow>> snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: MiuixCircularProgressIndicator());
             }
             if (snapshot.hasError) {
               return Center(
@@ -205,13 +207,13 @@ class _GroupsPageState extends State<GroupsPage> {
                       ),
                       const Spacer(),
                       if (widget.createGroup != null || widget.services != null)
-                        TextButton.icon(
+                        AppButton.icon(
                           key: const ValueKey<String>('create-group'),
                           onPressed: _creating ? null : _create,
                           icon: const Icon(Icons.add, size: 18),
                           label: const Text('新建群聊'),
                         ),
-                      IconButton(
+                      AppIconButton(
                         tooltip: '刷新',
                         icon: Icon(
                           Icons.refresh,
@@ -244,7 +246,7 @@ class _GroupsPageState extends State<GroupsPage> {
 Future<({String name, List<PeerId> members})?> showCreateGroupDialog(
   BuildContext context, {
   required List<DeviceRecord> members,
-}) => showDialog<({String name, List<PeerId> members})>(
+}) => showAppDialog<({String name, List<PeerId> members})>(
   context: context,
   builder: (_) => _CreateGroupDialog(
     members: [
@@ -279,7 +281,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppDialog(
     title: const Text('新建群聊'),
     content: SizedBox(
       width: 400,
@@ -289,12 +291,12 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            TextFormField(
+            AppTextField(
               key: const ValueKey<String>('group-name-field'),
               controller: _name,
               autofocus: true,
               maxLength: 64,
-              decoration: const InputDecoration(labelText: '群聊名称'),
+              label: '群聊名称',
               validator: (String? raw) {
                 final String value = raw?.trim() ?? '';
                 if (value.isEmpty) return '请输入群聊名称';
@@ -304,7 +306,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
                 }
                 return null;
               },
-              onFieldSubmitted: (_) => _create(),
+              onSubmitted: (_) => _create(),
             ),
             const SizedBox(height: 12),
             const Text('选择成员'),
@@ -322,7 +324,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
                 child: ListView(
                   children: <Widget>[
                     for (final DeviceRecord member in widget.members)
-                      CheckboxListTile(
+                      AppCheckboxTile(
                         key: ValueKey<String>(
                           'group-member-${member.peerId.value}',
                         ),
@@ -349,11 +351,11 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
       ),
     ),
     actions: <Widget>[
-      TextButton(
+      AppButton(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('取消'),
       ),
-      FilledButton(onPressed: _create, child: const Text('创建')),
+      AppButton.primary(onPressed: _create, child: const Text('创建')),
     ],
   );
 }
@@ -376,7 +378,7 @@ class GroupRowView extends StatelessWidget {
     // 已解散的群降透明度（不换色相），并显式标注状态。
     return Opacity(
       opacity: row.archived ? 0.55 : 1.0,
-      child: Card(
+      child: MiuixCard(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -445,20 +447,10 @@ class UnreadBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     if (count <= 0) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: tokens.accent,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        count > 99 ? '99+' : '$count',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: tokens.onAccent,
-        ),
-      ),
+    return MiuixBadge(
+      containerColor: tokens.accent,
+      contentColor: tokens.onAccent,
+      child: Text(count > 99 ? '99+' : '$count'),
     );
   }
 }

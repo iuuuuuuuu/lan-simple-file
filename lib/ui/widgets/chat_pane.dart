@@ -3,11 +3,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
+import 'app_controls.dart';
+
 import 'package:flutter/services.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../core/contracts/contracts.dart';
 import 'avatar_badge.dart';
+import 'app_toast.dart';
 import 'drop_share_overlay.dart';
 
 class ChatPane extends StatefulWidget {
@@ -22,6 +26,7 @@ class ChatPane extends StatefulWidget {
     this.selfAvatarBytes,
     this.subtitle = '',
     this.senderNames = const {},
+    this.senderAvatars = const {},
     this.onRead,
     this.sharePicker,
     this.shareLinkResolver,
@@ -29,6 +34,8 @@ class ChatPane extends StatefulWidget {
     this.enableDragDrop = false,
     this.onUpload,
     this.onBack,
+    this.peer,
+    this.onShowShares,
   });
   final String threadId;
   final String title;
@@ -39,6 +46,7 @@ class ChatPane extends StatefulWidget {
   final Uint8List? selfAvatarBytes;
   final String subtitle;
   final Map<String, String> senderNames;
+  final Map<String, Uint8List?> senderAvatars;
   final Future<void> Function()? onRead;
   final Future<ShareId?> Function()? sharePicker;
   final Future<Uri> Function(PeerId, ShareId)? shareLinkResolver;
@@ -46,6 +54,8 @@ class ChatPane extends StatefulWidget {
   final bool enableDragDrop;
   final VoidCallback? onUpload;
   final VoidCallback? onBack;
+  final PeerId? peer;
+  final ValueChanged<PeerId>? onShowShares;
 
   @override
   State<ChatPane> createState() => _ChatPaneState();
@@ -144,8 +154,7 @@ class _ChatPaneState extends State<ChatPane> {
       );
       await Clipboard.setData(ClipboardData(text: link.toString()));
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('取件链接已复制')));
+        AppToast.show(context, '取件链接已复制');
       }
     } on Object catch (error) {
       if (mounted) setState(() => _error = '复制取件链接失败：$error');
@@ -192,16 +201,16 @@ class _ChatPaneState extends State<ChatPane> {
   }
 
   Future<void> _messageMenu(MessageRecord message, Offset position) async {
-    final items = <PopupMenuEntry<String>>[
+    final items = <AppMenuItem<String>>[
       if (message.kind == MessageKind.text && !message.isRevoked)
-        const PopupMenuItem(value: 'copy', child: Text('复制文字')),
+        const AppMenuItem(value: 'copy', label: '复制文字'),
       if (message.senderPeerId == widget.self &&
           !message.isRevoked &&
           widget.messaging != null)
-        const PopupMenuItem(value: 'revoke', child: Text('撤回消息')),
+        const AppMenuItem(value: 'revoke', label: '撤回消息'),
     ];
     if (items.isEmpty) return;
-    final action = await showMenu<String>(
+    final action = await showAppMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -252,47 +261,47 @@ class _ChatPaneState extends State<ChatPane> {
             onLongPressStart: message.isRevoked
                 ? null
                 : (details) => _messageMenu(message, details.globalPosition),
-            child: Container(
+            child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: mine ? tokens.accentSoft : tokens.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: mine
-                      ? tokens.accent.withValues(alpha: .18)
-                      : tokens.cardLine,
+              child: MiuixCard(
+                insideMargin: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (message.kind == MessageKind.share && !message.isRevoked)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Icon(
-                        Icons.folder_outlined,
-                        size: 24,
-                        color: tokens.accent,
+                colors: MiuixCardColors(
+                  color: mine ? tokens.accentSoft : tokens.surface,
+                  contentColor: tokens.fg,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (message.kind == MessageKind.share && !message.isRevoked)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Icon(
+                          Icons.folder_outlined,
+                          size: 24,
+                          color: tokens.accent,
+                        ),
+                      ),
+                    SelectableText(
+                      message.isRevoked ? '消息已撤回' : text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: message.isRevoked ? tokens.fgDim : tokens.fg,
                       ),
                     ),
-                  SelectableText(
-                    message.isRevoked ? '消息已撤回' : text,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: message.isRevoked ? tokens.fgDim : tokens.fg,
-                    ),
-                  ),
-                  if (message.kind == MessageKind.share &&
-                      !message.isRevoked &&
-                      widget.shareLinkResolver != null)
-                    TextButton(
-                      onPressed: () => _copyShareLink(message),
-                      child: const Text('复制取件链接'),
-                    ),
-                ],
+                    if (message.kind == MessageKind.share &&
+                        !message.isRevoked &&
+                        widget.shareLinkResolver != null)
+                      AppButton(
+                        onPressed: () => _copyShareLink(message),
+                        child: const Text('复制取件链接'),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -304,26 +313,27 @@ class _ChatPaneState extends State<ChatPane> {
             ),
           ),
           if (mine && !message.isRevoked && widget.messaging != null)
-            TextButton(
+            AppButton(
               key: ValueKey('revoke-message-${message.id}'),
               onPressed: () => _revoke(message),
-              style: TextButton.styleFrom(
-                minimumSize: const Size(40, 24),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: tokens.fgDim,
-                textStyle: Theme.of(context).textTheme.labelSmall
-                    ?.copyWith(fontSize: 11),
-              ),
+
               child: const Text('撤回'),
             ),
         ],
       ),
     );
-    final avatar = AvatarBadge(
-      peerId: message.senderPeerId.value,
-      size: 32,
-      avatarBytes: mine ? widget.selfAvatarBytes : widget.avatarBytes,
+    final avatar = _avatar(
+      message.senderPeerId,
+      key: ValueKey('chat-avatar-${message.id}'),
+      child: AvatarBadge(
+        peerId: message.senderPeerId.value,
+        size: 32,
+        avatarBytes: mine
+            ? widget.selfAvatarBytes
+            : message.senderPeerId == widget.peer
+            ? widget.avatarBytes
+            : widget.senderAvatars[message.senderPeerId.value],
+      ),
     );
     return Padding(
       key: ValueKey('chat-message-${message.id}'),
@@ -337,6 +347,17 @@ class _ChatPaneState extends State<ChatPane> {
             ? [bubble, const SizedBox(width: 10), avatar]
             : [avatar, const SizedBox(width: 10), bubble],
       ),
+    );
+  }
+
+  Widget _avatar(PeerId? peer, {Key? key, required Widget child}) {
+    if (peer == null || widget.onShowShares == null) return child;
+    return AppIconButton(
+      key: key,
+      tooltip: '查看分享',
+      padding: EdgeInsets.zero,
+      onPressed: () => widget.onShowShares!(peer),
+      icon: child,
     );
   }
 
@@ -360,15 +381,19 @@ class _ChatPaneState extends State<ChatPane> {
             child: Row(
               children: [
                 if (widget.onBack != null)
-                  IconButton(
+                  AppIconButton(
                     tooltip: '返回联系人',
                     onPressed: widget.onBack,
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
-                AvatarBadge(
-                  peerId: widget.avatarSeed,
-                  avatarBytes: widget.avatarBytes,
-                  size: 36,
+                _avatar(
+                  widget.peer,
+                  key: const ValueKey('chat-header-avatar'),
+                  child: AvatarBadge(
+                    peerId: widget.avatarSeed,
+                    avatarBytes: widget.avatarBytes,
+                    size: 36,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -441,7 +466,7 @@ class _ChatPaneState extends State<ChatPane> {
                     }
                     return KeyEventResult.ignored;
                   },
-                  child: TextField(
+                  child: AppTextField(
                     key: const ValueKey('chat-input'),
                     controller: _text,
                     enabled: widget.messaging != null,
@@ -449,18 +474,14 @@ class _ChatPaneState extends State<ChatPane> {
                     maxLines: 5,
                     maxLength: 16000,
                     style: TextStyle(fontSize: 14, color: tokens.fg),
-                    decoration: const InputDecoration(
-                      hintText: '输入消息…',
-                      border: InputBorder.none,
-                      counterText: '',
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                    ),
+                    label: '输入消息…',
+                    placeholder: true,
                   ),
                 ),
                 Row(
                   children: [
                     if (widget.sharePicker != null)
-                      IconButton(
+                      AppIconButton(
                         tooltip: '发送文件分享',
                         onPressed: _sending ? null : _sendShare,
                         icon: Icon(
@@ -470,7 +491,7 @@ class _ChatPaneState extends State<ChatPane> {
                         ),
                       ),
                     if (widget.onUpload != null)
-                      IconButton(
+                      AppIconButton(
                         key: const ValueKey('chat-upload'),
                         tooltip: '上传并发送文件',
                         onPressed: _sending ? null : widget.onUpload,
@@ -491,18 +512,12 @@ class _ChatPaneState extends State<ChatPane> {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    FilledButton(
+                    AppButton.primary(
                       key: const ValueKey('chat-send'),
                       onPressed: _sending || widget.messaging == null
                           ? null
                           : _send,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: tokens.accent,
-                        foregroundColor: tokens.onAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+
                       child: Text(_sending ? '发送中…' : '发送'),
                     ),
                   ],

@@ -12,6 +12,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../core/contracts/contracts.dart';
 
@@ -63,6 +65,7 @@ final class ServiceBrowseSource implements BrowseSource {
     return BrowsePage(entries: page.entries, nextCursor: page.nextCursor);
   }
 }
+
 /// 字节数转人话。
 String humanSize(int? bytes) {
   if (bytes == null) return '未知大小';
@@ -117,6 +120,7 @@ class ShareDetailPanel extends StatefulWidget {
 class _ShareDetailPanelState extends State<ShareDetailPanel> {
   /// 当前路径（相对分享根）；空表示根。
   ItemKey? _path;
+  final List<ItemKey?> _parents = [];
 
   /// 已加载的条目。
   final List<TreeEntryView> _entries = <TreeEntryView>[];
@@ -184,31 +188,33 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
 
   /// 下钻到某个子目录。
   Future<void> _enter(ItemKey key) async {
-    setState(() => _path = key);
+    if (_loading) return;
+    setState(() {
+      _parents.add(_path);
+      _path = key;
+    });
     await _load(reset: true);
   }
 
   /// 返回上一级。
   Future<void> _up() async {
-    final String? current = _path?.value;
-    if (current == null) return;
-    final int cut = current.lastIndexOf('/');
+    if (_loading || _parents.isEmpty) return;
     setState(() {
-      _path = cut < 0 ? null : ItemKey.parse(current.substring(0, cut));
+      _path = _parents.removeLast();
     });
     await _load(reset: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens =
-        Theme.of(context).extension<LanFileTokens>()!;
+    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     // 源已失效：给明确文案，而不是空白列表。
     if (widget.share.missing) {
       return _Hint(
         icon: Icons.link_off,
         title: '已失效，无法浏览',
-        body: '这条分享的源文件在提供者侧被移动或删除了。'
+        body:
+            '这条分享的源文件在提供者侧被移动或删除了。'
             '请用「重新定位」指向新位置后再试。',
       );
     }
@@ -218,9 +224,9 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
         _Breadcrumb(
           rootName: widget.share.displayName,
           path: _path,
-          onRoot: _path == null ? null : _up,
+          onRoot: _path == null || _loading ? null : _up,
         ),
-        const Divider(height: LanFileMetrics.hairline),
+        const AppDivider(height: LanFileMetrics.hairline),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(LanFileMetrics.rowPaddingH),
@@ -232,15 +238,13 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
         else if (!_loaded)
           const Padding(
             padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: MiuixCircularProgressIndicator()),
           )
         else if (_entries.isEmpty)
           _Hint(
             icon: Icons.folder_open_outlined,
             title: '这个文件夹是空的',
-            body: _path == null
-                ? '分享根下没有可见的文件或子目录。'
-                : '该目录下没有可见的文件或子目录。',
+            body: _path == null ? '分享根下没有可见的文件或子目录。' : '该目录下没有可见的文件或子目录。',
           )
         else ...<Widget>[
           for (final TreeEntryView entry in _entries)
@@ -254,7 +258,7 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Center(
-                child: TextButton(
+                child: AppButton(
                   onPressed: _loading ? null : () => _load(reset: false),
                   child: Text(_loading ? '加载中…' : '加载更多'),
                 ),
@@ -280,14 +284,12 @@ class _Breadcrumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens =
-        Theme.of(context).extension<LanFileTokens>()!;
+    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     final String? current = path?.value;
     final List<String> segments = current == null || current.isEmpty
         ? const <String>[]
         : current.split('/');
-    final String suffix =
-        segments.isEmpty ? '' : ' / ${segments.join(' / ')}';
+    final String suffix = segments.isEmpty ? '' : ' / ${segments.join(' / ')}';
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: LanFileMetrics.rowPaddingH,
@@ -296,9 +298,8 @@ class _Breadcrumb extends StatelessWidget {
       child: Row(
         children: <Widget>[
           if (segments.isNotEmpty)
-            IconButton(
+            AppIconButton(
               tooltip: '返回上一级',
-              visualDensity: VisualDensity.compact,
               icon: Icon(Icons.arrow_upward, size: 16, color: tokens.fgDim),
               onPressed: onRoot,
             ),
@@ -335,14 +336,10 @@ class _EntryRow extends StatefulWidget {
 }
 
 class _EntryRowState extends State<_EntryRow> {
-  bool _hovered = false;
-
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens =
-        Theme.of(context).extension<LanFileTokens>()!;
+    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     final TreeEntryView e = widget.entry;
-    final bool interactive = widget.onTap != null;
 
     final Widget row = Padding(
       padding: const EdgeInsets.symmetric(
@@ -372,19 +369,25 @@ class _EntryRowState extends State<_EntryRow> {
           ),
           if (!e.isDirectory && widget.onReveal != null) ...<Widget>[
             const SizedBox(width: 2),
-            IconButton(
+            AppIconButton(
               tooltip: '打开文件所在位置',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.folder_open_outlined, size: 16, color: tokens.fgDim),
+              icon: Icon(
+                Icons.folder_open_outlined,
+                size: 16,
+                color: tokens.fgDim,
+              ),
               onPressed: () => widget.onReveal!(e),
             ),
           ],
           if (!e.isDirectory && widget.onDownload != null) ...<Widget>[
             const SizedBox(width: 4),
-            IconButton(
+            AppIconButton(
               tooltip: '下载',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.download_outlined, size: 16, color: tokens.fgDim),
+              icon: Icon(
+                Icons.download_outlined,
+                size: 16,
+                color: tokens.fgDim,
+              ),
               onPressed: () => widget.onDownload!(e),
             ),
           ],
@@ -392,20 +395,7 @@ class _EntryRowState extends State<_EntryRow> {
       ),
     );
 
-    return MouseRegion(
-      cursor: interactive ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          color: _hovered ? tokens.hoverSoft : null,
-          child: row,
-        ),
-      ),
-    );
+    return MiuixPressable(onPressed: widget.onTap, child: row);
   }
 }
 
@@ -419,8 +409,7 @@ class _Hint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens =
-        Theme.of(context).extension<LanFileTokens>()!;
+    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Column(

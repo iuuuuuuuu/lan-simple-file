@@ -66,6 +66,10 @@ void main() {
             (receiver.announce as AnnounceServiceImpl).port,
           ),
           isTrue,
+          reason:
+              'sender=${(sender.announce as AnnounceServiceImpl).diagnosticState}; '
+              'receiver=${(receiver.announce as AnnounceServiceImpl).diagnosticState}; '
+              'errors=${sender.announce.rejected.recentReasons}',
         );
       }
     }

@@ -6,6 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/assembly.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/files/saf_bridge.dart';
@@ -139,7 +142,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final open = tester
-        .widget<IconButton>(find.byKey(const ValueKey('mobile-upload')))
+        .widget<AppIconButton>(find.byKey(const ValueKey('mobile-upload')))
         .onPressed!;
     open();
     open();
@@ -265,7 +268,7 @@ void main() {
   testWidgets('我的分享页没有右上角上传按钮，保留刷新', (tester) async {
     await setViewport(tester, const Size(1280, 800));
     await tester.pumpWidget(
-      wrapShell(Scaffold(body: SharesPage(services: services))),
+      wrapShell(AppScaffold(body: SharesPage(services: services))),
     );
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
@@ -274,7 +277,7 @@ void main() {
     expect(find.text('我的分享'), findsOneWidget);
     expect(find.byKey(const ValueKey('shares-upload')), findsNothing);
     expect(find.text('上传文件'), findsNothing);
-    expect(find.byTooltip('刷新'), findsOneWidget);
+    expect(findAppTooltip('刷新'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

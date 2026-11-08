@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../platform/android/permission_flow.dart';
 import 'setting_row.dart';
 
@@ -90,7 +92,7 @@ class _AndroidAllFilesSettingState extends State<AndroidAllFilesSetting>
         mainAxisSize: MainAxisSize.min,
         children: [
           SettingValue(text: status),
-          IconButton(
+          AppIconButton(
             key: const ValueKey('all-files-settings'),
             tooltip: '文件访问授权设置',
             onPressed: open,

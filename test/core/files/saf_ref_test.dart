@@ -40,7 +40,8 @@ final class FakeSafChannel {
     final Map<String, Object?> args =
         (call.arguments as Map<Object?, Object?>? ?? <Object?, Object?>{})
             .cast<String, Object?>();
-    final Object? Function(Map<String, Object?>)? handler = handlers[call.method];
+    final Object? Function(Map<String, Object?>)? handler =
+        handlers[call.method];
     if (handler == null) {
       throw MissingPluginException('未注册的假方法: ${call.method}');
     }
@@ -79,11 +80,8 @@ Map<String, Object?> item({
   };
 }
 
-SafRef rootRef(SafBridge bridge, {String documentId = kRootId}) => SafRef(
-      bridge: bridge,
-      treeUri: kTreeUri,
-      documentId: documentId,
-    );
+SafRef rootRef(SafBridge bridge, {String documentId = kRootId}) =>
+    SafRef(bridge: bridge, treeUri: kTreeUri, documentId: documentId);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,10 +97,7 @@ void main() {
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel(kSafChannelName),
-          null,
-        );
+        .setMockMethodCallHandler(const MethodChannel(kSafChannelName), null);
   });
 
   group('SafBridge 参数编解码', () {
@@ -110,8 +105,11 @@ void main() {
       fake.on('listChildren', (Map<String, Object?> args) {
         return <Object?>[item(documentId: '$kRootId/a.txt', size: 3)];
       });
-      final List<Map<String, Object?>> rows =
-          await bridge.listChildren(kTreeUri, kRootId, limit: 10);
+      final List<Map<String, Object?>> rows = await bridge.listChildren(
+        kTreeUri,
+        kRootId,
+        limit: 10,
+      );
       final MethodCall call = fake.callsOf('listChildren').single;
       final Map<Object?, Object?> sent =
           call.arguments as Map<Object?, Object?>;
@@ -134,27 +132,39 @@ void main() {
 
     test('cursor 透传给通道', () async {
       fake.on('listChildren', (Map<String, Object?> args) => <Object?>[]);
-      await bridge.listChildren(kTreeUri, kRootId,
-          cursor: '$kRootId/b.txt', limit: 5);
+      await bridge.listChildren(
+        kTreeUri,
+        kRootId,
+        cursor: '$kRootId/b.txt',
+        limit: 5,
+      );
       final MethodCall call = fake.callsOf('listChildren').single;
-      expect((call.arguments as Map<Object?, Object?>)['cursor'],
-          '$kRootId/b.txt');
+      expect(
+        (call.arguments as Map<Object?, Object?>)['cursor'],
+        '$kRootId/b.txt',
+      );
     });
 
     test('非法 treeUri / limit 在 Dart 侧被拒，不打到通道', () async {
       await expectLater(
         bridge.listChildren('primary:DCIM', kRootId, limit: 10),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
       await expectLater(
         bridge.listChildren(kTreeUri, kRootId, limit: 0),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
       expect(fake.calls, isEmpty);
     });
@@ -175,10 +185,13 @@ void main() {
       });
       await expectLater(
         bridge.statItem(kTreeUri, kRootId),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.accessDenied)),
+            LanFileErrorCode.accessDenied,
+          ),
+        ),
       );
     });
 
@@ -188,8 +201,13 @@ void main() {
       });
       await expectLater(
         bridge.statItem(kTreeUri, kRootId),
-        throwsA(isA<LanFileException>().having(
-            (LanFileException e) => e.code, 'code', LanFileErrorCode.notFound)),
+        throwsA(
+          isA<LanFileException>().having(
+            (LanFileException e) => e.code,
+            'code',
+            LanFileErrorCode.notFound,
+          ),
+        ),
       );
 
       fake.on('statItem', (Map<String, Object?> args) {
@@ -197,8 +215,13 @@ void main() {
       });
       await expectLater(
         bridge.statItem(kTreeUri, kRootId),
-        throwsA(isA<LanFileException>().having((LanFileException e) => e.code,
-            'code', LanFileErrorCode.providerOffline)),
+        throwsA(
+          isA<LanFileException>().having(
+            (LanFileException e) => e.code,
+            'code',
+            LanFileErrorCode.providerOffline,
+          ),
+        ),
       );
 
       fake.on('statItem', (Map<String, Object?> args) {
@@ -206,32 +229,68 @@ void main() {
       });
       await expectLater(
         bridge.statItem(kTreeUri, kRootId),
-        throwsA(isA<LanFileException>().having(
-            (LanFileException e) => e.code, 'code', LanFileErrorCode.internal)),
+        throwsA(
+          isA<LanFileException>().having(
+            (LanFileException e) => e.code,
+            'code',
+            LanFileErrorCode.internal,
+          ),
+        ),
       );
     });
 
     test('通道缺失 → unsupported', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        const MethodChannel(kSafChannelName),
-        null,
-      );
+          .setMockMethodCallHandler(const MethodChannel(kSafChannelName), null);
       await expectLater(
         bridge.exists(kTreeUri, kRootId),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.unsupported)),
+            LanFileErrorCode.unsupported,
+          ),
+        ),
       );
       installChannel(fake);
     });
   });
 
   group('SafRef 分页游标', () {
+    test(
+      'directory cursor retains kind when passed to the native bridge',
+      () async {
+        fake.on(
+          'statItem',
+          (_) => item(documentId: kRootId, isDirectory: true),
+        );
+        fake.on(
+          'listChildren',
+          (_) => [
+            item(documentId: '$kRootId/z', isDirectory: true),
+            item(documentId: '$kRootId/a.txt'),
+          ],
+        );
+        final ref = rootRef(bridge);
+        final first = await ref.list(limit: 1);
+        expect(first.entries.single.isDirectory, isTrue);
+        fake.on('listChildren', (args) {
+          expect(args['cursor'], '$kRootId/z');
+          expect(args['cursorIsDirectory'], isTrue);
+          return [item(documentId: '$kRootId/a.txt')];
+        });
+        final second = await ref.list(cursor: first.nextCursor, limit: 1);
+        expect(second.entries.single.name, '$kRootId/a.txt');
+        expect(second.nextCursor, isNull);
+      },
+    );
+
     test('满页时给出 nextCursor，且 cursor = 最后一条 documentId', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'DCIM', isDirectory: true));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'DCIM', isDirectory: true),
+      );
       fake.on('listChildren', (Map<String, Object?> args) {
         // Kotlin 侧对 limit + 1 的探测请求返回 3 条，说明还有下一页。
         return <Object?>[
@@ -244,28 +303,39 @@ void main() {
       final SafRef ref = rootRef(bridge);
       final FileEntryPage page = await ref.list(limit: 2);
 
-      expect(page.entries.map((FileEntry e) => e.itemKey.value),
-          <String>['$kRootId/a.txt', '$kRootId/b.txt']);
+      expect(page.entries.map((FileEntry e) => e.itemKey.value), <String>[
+        '$kRootId/a.txt',
+        '$kRootId/b.txt',
+      ]);
       expect(page.hasMore, isTrue);
       expect(page.nextCursor, '$kRootId/b.txt');
       // 探测请求用 limit + 1
-      expect((fake.callsOf('listChildren').single.arguments
-          as Map<Object?, Object?>)['limit'], 3);
+      expect(
+        (fake.callsOf('listChildren').single.arguments
+            as Map<Object?, Object?>)['limit'],
+        3,
+      );
 
       // 第二页用游标续取，返回不足一页即到末尾。
       fake.on('listChildren', (Map<String, Object?> args) {
         expect((args)['cursor'], '$kRootId/b.txt');
         return <Object?>[item(documentId: '$kRootId/c.txt', size: 3)];
       });
-      final FileEntryPage page2 = await ref.list(cursor: page.nextCursor, limit: 2);
+      final FileEntryPage page2 = await ref.list(
+        cursor: page.nextCursor,
+        limit: 2,
+      );
       expect(page2.entries.single.itemKey.value, '$kRootId/c.txt');
       expect(page2.hasMore, isFalse);
       expect(page2.nextCursor, isNull);
     });
 
     test('翻完两页不重不漏', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'DCIM', isDirectory: true));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'DCIM', isDirectory: true),
+      );
       final List<String> all = <String>[
         for (int i = 0; i < 5; i++) '$kRootId/f$i',
       ]..sort();
@@ -277,8 +347,7 @@ void main() {
             .take(limit)
             .toList();
         return <Object?>[
-          for (final String id in rest)
-            item(documentId: id, size: 1),
+          for (final String id in rest) item(documentId: id, size: 1),
         ];
       });
 
@@ -302,18 +371,24 @@ void main() {
     });
 
     test('对文件调用 list 抛 invalidArgument', () async {
-      fake.on('statItem', (Map<String, Object?> args) => item(
-            documentId: kRootId,
-            name: 'a.txt',
-            size: 1,
-            mime: 'text/plain',
-          ));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) => item(
+          documentId: kRootId,
+          name: 'a.txt',
+          size: 1,
+          mime: 'text/plain',
+        ),
+      );
       await expectLater(
         rootRef(bridge).list(limit: 10),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
       expect(fake.callsOf('listChildren'), isEmpty);
     });
@@ -321,8 +396,11 @@ void main() {
 
   group('SafRef 范围读取', () {
     test('openRead 传 start/endExclusive，并按块拼接', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'big.bin', size: 600000));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'big.bin', size: 600000),
+      );
       final List<Uint8List> chunks = <Uint8List>[
         Uint8List.fromList(List<int>.filled(262144, 7)),
         Uint8List.fromList(List<int>.filled(100, 8)),
@@ -344,8 +422,9 @@ void main() {
       fake.on('closeRead', (Map<String, Object?> args) => null);
 
       final List<int> bytes = <int>[];
-      await for (final List<int> chunk
-          in rootRef(bridge).openRead(start: 1000, endExclusive: 600000)) {
+      await for (final List<int> chunk in rootRef(
+        bridge,
+      ).openRead(start: 1000, endExclusive: 600000)) {
         bytes.addAll(chunk);
       }
       expect(bytes.length, 262144 + 100);
@@ -355,8 +434,11 @@ void main() {
     });
 
     test('读取中途抛错时仍然关闭句柄', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'big.bin', size: 10));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'big.bin', size: 10),
+      );
       fake.on('openRead', (Map<String, Object?> args) => 'saf-2');
       fake.on('readChunk', (Map<String, Object?> args) {
         throw PlatformException(code: 'io', message: 'boom');
@@ -365,44 +447,63 @@ void main() {
 
       await expectLater(
         rootRef(bridge).openRead().toList(),
-        throwsA(isA<LanFileException>().having(
-            (LanFileException e) => e.code, 'code', LanFileErrorCode.io)),
+        throwsA(
+          isA<LanFileException>().having(
+            (LanFileException e) => e.code,
+            'code',
+            LanFileErrorCode.io,
+          ),
+        ),
       );
       expect(fake.callsOf('closeRead').length, 1);
     });
 
     test('越界读取在 Dart 侧被拒', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'big.bin', size: 100));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'big.bin', size: 100),
+      );
       fake.on('openRead', (Map<String, Object?> args) => 'saf-3');
 
       await expectLater(
         rootRef(bridge).openRead(start: 500).toList(),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
       expect(fake.callsOf('openRead'), isEmpty);
     });
 
     test('对目录调用 openRead 抛 invalidArgument', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'DCIM', isDirectory: true));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'DCIM', isDirectory: true),
+      );
       await expectLater(
         rootRef(bridge).openRead().toList(),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
     });
   });
 
   group('SafRef 属性与指纹', () {
     test('itemKey 用 documentId 而不是路径', () {
-      final SafRef ref =
-          rootRef(bridge, documentId: 'primary:DCIM/Camera/IMG_0001.jpg');
+      final SafRef ref = rootRef(
+        bridge,
+        documentId: 'primary:DCIM/Camera/IMG_0001.jpg',
+      );
       expect(ref.itemKey.value, 'primary:DCIM/Camera/IMG_0001.jpg');
       expect(ref.documentId, 'primary:DCIM/Camera/IMG_0001.jpg');
       expect(ref.treeUri, kTreeUri);
@@ -410,23 +511,31 @@ void main() {
     });
 
     test('fingerprint 为 size-mtimeMs，并只打一次 statItem', () async {
-      fake.on('statItem', (Map<String, Object?> args) => item(
-            documentId: kRootId,
-            name: 'a.bin',
-            size: 1234,
-            lastModified: 1700000000123,
-          ));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) => item(
+          documentId: kRootId,
+          name: 'a.bin',
+          size: 1234,
+          lastModified: 1700000000123,
+        ),
+      );
       final SafRef ref = rootRef(bridge);
       expect(await ref.fingerprint(), '1234-1700000000123');
       expect(await ref.length(), 1234);
-      expect((await ref.lastModified())!.toUtc().millisecondsSinceEpoch,
-          1700000000123);
+      expect(
+        (await ref.lastModified())!.toUtc().millisecondsSinceEpoch,
+        1700000000123,
+      );
       expect(fake.callsOf('statItem').length, 1, reason: '属性应被缓存');
     });
 
     test('toEntry 与 length 目录返回 0', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: kRootId, name: 'DCIM', isDirectory: true));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: kRootId, name: 'DCIM', isDirectory: true),
+      );
       final SafRef ref = rootRef(bridge);
       expect(await ref.length(), 0);
       final FileEntry entry = ref.toEntry();
@@ -443,8 +552,11 @@ void main() {
 
   group('SafRef.child 与 SafRefFactory', () {
     test('child 接受直接子项并拒绝跨层键', () async {
-      fake.on('statItem', (Map<String, Object?> args) =>
-          item(documentId: '$kRootId/sub', name: 'sub', isDirectory: true));
+      fake.on(
+        'statItem',
+        (Map<String, Object?> args) =>
+            item(documentId: '$kRootId/sub', name: 'sub', isDirectory: true),
+      );
       final SafRef ref = rootRef(bridge);
       final FileRef child = await ref.child(ItemKey('$kRootId/sub'));
       expect(child.itemKey.value, '$kRootId/sub');
@@ -452,34 +564,45 @@ void main() {
 
       await expectLater(
         ref.child(ItemKey('primary:Download/x')),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
     });
 
     test('factory.resolve 只接受 root 下的键', () async {
-      fake.on('statItem', (args) => item(
-            documentId: args['documentId'] as String,
-            isDirectory: args['documentId'] == kRootId,
-          ));
+      fake.on(
+        'statItem',
+        (args) => item(
+          documentId: args['documentId'] as String,
+          isDirectory: args['documentId'] == kRootId,
+        ),
+      );
       final SafRefFactory factory = SafRefFactory(bridge);
       final FileRef ref = await factory.resolve(kTreeUri, ItemKey(kRootId));
       expect(ref.itemKey.value, kRootId);
       expect(ref.isDirectory, isTrue);
 
-      final FileRef nested =
-          await factory.resolve(kTreeUri, ItemKey('$kRootId/Camera/a.jpg'));
+      final FileRef nested = await factory.resolve(
+        kTreeUri,
+        ItemKey('$kRootId/Camera/a.jpg'),
+      );
       expect(nested.itemKey.value, '$kRootId/Camera/a.jpg');
       expect(nested.isDirectory, isFalse);
 
       await expectLater(
         factory.resolve(kTreeUri, ItemKey('primary:Download/b.jpg')),
-        throwsA(isA<LanFileException>().having(
+        throwsA(
+          isA<LanFileException>().having(
             (LanFileException e) => e.code,
             'code',
-            LanFileErrorCode.invalidArgument)),
+            LanFileErrorCode.invalidArgument,
+          ),
+        ),
       );
     });
 

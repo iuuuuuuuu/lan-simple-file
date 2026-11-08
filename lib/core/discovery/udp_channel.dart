@@ -19,6 +19,9 @@ import 'dart:typed_data';
 
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 
+import '../diagnostics/network_log.dart';
+import '../net/lan_interfaces.dart';
+
 /// 一次发送的结果，用于排障与测试断言。
 final class SendReport {
   SendReport();
@@ -94,6 +97,7 @@ final class UdpChannel {
   int _receiveFailures = 0;
   int _sendFailures = 0;
   bool _closed = false;
+  bool unexpectedlyEnded = false;
 
   /// 已绑定则 true。
   bool get isBound => _socket != null;
@@ -119,6 +123,10 @@ final class UdpChannel {
       throw const LanFileException(LanFileErrorCode.conflict, 'UDP 通道已经绑定');
     }
     final RawDatagramSocket socket;
+    NetworkLog.record('udp.bind_attempt', {
+      'address': (bindAddress ?? InternetAddress.anyIPv4).address,
+      'port': port,
+    });
     try {
       socket = await RawDatagramSocket.bind(
         bindAddress ?? InternetAddress.anyIPv4,
@@ -127,6 +135,7 @@ final class UdpChannel {
         reusePort: false,
       );
     } on SocketException catch (error) {
+      NetworkLog.record('udp.bind_error', NetworkLog.errorFields(error));
       throw LanFileException(
         LanFileErrorCode.io,
         'UDP 绑定 :$port 失败',
@@ -137,6 +146,10 @@ final class UdpChannel {
     socket.multicastLoopback = true;
     socket.multicastHops = 1;
     _socket = socket;
+    NetworkLog.record('udp.bound', {
+      'address': socket.address.address,
+      'port': socket.port,
+    });
     socket.listen(
       _handleEvent,
       onError: (Object error, StackTrace stackTrace) {
@@ -144,13 +157,25 @@ final class UdpChannel {
         _report(error, stackTrace);
       },
       onDone: () {
+        NetworkLog.record('udp.done', {'expected': _closed, 'port': port});
         if (!_closed) {
+          unexpectedlyEnded = true;
           _receiveFailures++;
           _report(StateError('UDP socket 意外结束'), null);
         }
       },
     );
     _interfaces = await _listInterfaces();
+    NetworkLog.record('udp.interfaces', {
+      'interfaces': [
+        for (final i in _interfaces)
+          {
+            'name': i.name,
+            'index': i.index,
+            'addresses': i.addresses.map((a) => a.address).toList(),
+          },
+      ],
+    });
     _joinMulticastOnAllInterfaces(socket);
   }
 
@@ -169,6 +194,10 @@ final class UdpChannel {
         ? <NetworkInterface>[]
         : _interfaces;
     if (targets.isEmpty) {
+      if (Platform.isAndroid) {
+        report.failures.add('未连接 Wi-Fi 或以太网，暂不发送局域网公告');
+        return report;
+      }
       // 没有任何非环回网卡（离线机器/受限沙箱）：仍尝试一次，不让局域网静默失联。
       _sendOne(socket, bytes, broadcast, report, '广播');
       _sendOne(socket, bytes, multicast, report, '组播');
@@ -190,6 +219,14 @@ final class UdpChannel {
   ) {
     try {
       final int written = socket.send(bytes, target, port);
+      NetworkLog.record('udp.send', {
+        'target': target.address,
+        'port': port,
+        'label': label,
+        'bytes': bytes.length,
+        'written': written,
+        'binding': socket.address.address,
+      });
       if (written <= 0) {
         _sendFailures++;
         report.failures.add('$label 系统未接收（返回 $written）');
@@ -204,6 +241,12 @@ final class UdpChannel {
     } on SocketException catch (error) {
       _sendFailures++;
       report.failures.add('$label 失败: ${error.message}');
+      NetworkLog.record('udp.send_error', {
+        'target': target.address,
+        'port': port,
+        'label': label,
+        ...NetworkLog.errorFields(error),
+      });
     }
   }
 
@@ -215,9 +258,21 @@ final class UdpChannel {
       return false;
     }
     try {
-      return socket.send(bytes, address, targetPort) > 0;
+      final written = socket.send(bytes, address, targetPort);
+      NetworkLog.record('udp.unicast', {
+        'target': address.address,
+        'port': targetPort,
+        'bytes': bytes.length,
+        'written': written,
+      });
+      return written > 0;
     } on SocketException catch (error) {
       _sendFailures++;
+      NetworkLog.record('udp.unicast_error', {
+        'target': address.address,
+        'port': targetPort,
+        ...NetworkLog.errorFields(error),
+      });
       _report(error, null);
       return false;
     }
@@ -229,6 +284,7 @@ final class UdpChannel {
       return;
     }
     _closed = true;
+    NetworkLog.record('udp.close', {'port': port});
     final RawDatagramSocket? socket = _socket;
     _socket = null;
     if (_joinedInterfaces.isNotEmpty) {
@@ -255,6 +311,11 @@ final class UdpChannel {
     if (datagram == null) {
       return;
     }
+    NetworkLog.record('udp.receive', {
+      'source': datagram.address.address,
+      'port': datagram.port,
+      'bytes': datagram.data.length,
+    });
     try {
       onDatagram?.call(datagram.data, datagram.address, datagram.port);
     } catch (error, stackTrace) {
@@ -265,9 +326,11 @@ final class UdpChannel {
 
   Future<List<NetworkInterface>> _listInterfaces() async {
     try {
-      final List<NetworkInterface> all = await NetworkInterface.list(
-        includeLoopback: false,
-        type: InternetAddressType.IPv4,
+      final List<NetworkInterface> all = await lanInterfaces(
+        await NetworkInterface.list(
+          includeLoopback: false,
+          type: InternetAddressType.IPv4,
+        ),
       );
       return all
           .where(
@@ -286,6 +349,10 @@ final class UdpChannel {
     for (final NetworkInterface interface in _interfaces) {
       try {
         socket.joinMulticast(group, interface);
+        NetworkLog.record('udp.join', {
+          'group': multicastGroup,
+          'interface': interface.name,
+        });
         if (interface.addresses.isNotEmpty) {
           _joinedInterfaces.add(interface.addresses.first);
         }
@@ -294,7 +361,7 @@ final class UdpChannel {
         _report(error, null);
       }
     }
-    if (_joinedInterfaces.isEmpty) {
+    if (_joinedInterfaces.isEmpty && !Platform.isAndroid) {
       try {
         socket.joinMulticast(group);
         _joinedInterfaces.add(InternetAddress.anyIPv4);
@@ -305,6 +372,10 @@ final class UdpChannel {
   }
 
   void _report(Object error, StackTrace? stackTrace) {
+    NetworkLog.record('udp.channel_error', {
+      'port': port,
+      ...NetworkLog.errorFields(error),
+    });
     final UdpErrorReporter? handler = onError;
     if (handler != null) {
       handler(error, stackTrace);

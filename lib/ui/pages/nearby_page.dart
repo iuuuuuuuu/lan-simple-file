@@ -13,6 +13,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../widgets/app_controls.dart';
+
 import '../../app/assembly.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/contracts/contracts.dart';
@@ -221,7 +223,7 @@ class _NearbyPageState extends State<NearbyPage> {
   }
 
   Future<void> _editGroup([String? id]) async {
-    final String? name = await showDialog<String>(
+    final String? name = await showAppDialog<String>(
       context: context,
       builder: (_) => EditNameDialog(
         title: id == null ? '新建分组' : '重命名分组',
@@ -249,17 +251,17 @@ class _NearbyPageState extends State<NearbyPage> {
   }
 
   Future<void> _deleteGroup(String id) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
+      builder: (BuildContext ctx) => AppDialog(
         title: const Text('删除分组？'),
         content: Text('「${_groups.names[id]}」中的联系人会移回陌生人。'),
         actions: <Widget>[
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          AppButton.primary(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('删除'),
           ),
@@ -285,7 +287,7 @@ class _NearbyPageState extends State<NearbyPage> {
     onTap: () => _openPeer(peer),
     trailing: self || _groupsSource == null
         ? null
-        : PopupMenuButton<String>(
+        : AppMenuButton<String>(
             tooltip: '移动到分组',
             enabled: !_saving,
             onSelected: (String group) => _saveGroups(
@@ -297,13 +299,10 @@ class _NearbyPageState extends State<NearbyPage> {
                 },
               ),
             ),
-            itemBuilder: (_) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(value: '', child: Text('陌生人')),
+            itemBuilder: (_) => <AppMenuItem<String>>[
+              const AppMenuItem<String>(value: '', label: '陌生人'),
               for (final entry in _groups.names.entries)
-                PopupMenuItem<String>(
-                  value: entry.key,
-                  child: Text(entry.value),
-                ),
+                AppMenuItem<String>(value: entry.key, label: entry.value),
             ],
           ),
   );
@@ -313,7 +312,7 @@ class _NearbyPageState extends State<NearbyPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        ListTile(
+        AppListTile(
           key: ValueKey<String>('peer-group-$id'),
           dense: true,
           leading: Icon(collapsed ? Icons.chevron_right : Icons.expand_more),
@@ -323,14 +322,14 @@ class _NearbyPageState extends State<NearbyPage> {
           }),
           trailing: id.isEmpty
               ? null
-              : PopupMenuButton<String>(
+              : AppMenuButton<String>(
                   tooltip: '管理分组',
                   enabled: !_saving,
                   onSelected: (String value) =>
                       value == 'rename' ? _editGroup(id) : _deleteGroup(id),
-                  itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                    PopupMenuItem<String>(value: 'rename', child: Text('重命名')),
-                    PopupMenuItem<String>(value: 'delete', child: Text('删除分组')),
+                  itemBuilder: (_) => const <AppMenuItem<String>>[
+                    AppMenuItem<String>(value: 'rename', label: '重命名'),
+                    AppMenuItem<String>(value: 'delete', label: '删除分组'),
                   ],
                 ),
         ),
@@ -349,7 +348,7 @@ class _NearbyPageState extends State<NearbyPage> {
     if (_source == null) {
       return const ServicesNotConnected();
     }
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: MiuixCircularProgressIndicator());
     if (_error != null) {
       return _Message(
         icon: Icons.error_outline,
@@ -378,14 +377,12 @@ class _NearbyPageState extends State<NearbyPage> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: TextField(
+          child: AppTextField(
             key: const ValueKey('nearby-search'),
             onChanged: (value) => setState(() => _query = value),
-            decoration: const InputDecoration(
-              hintText: '搜索名字或设备 ID',
-              prefixIcon: Icon(Icons.search),
-              isDense: true,
-            ),
+            label: '搜索名字或设备 ID',
+            placeholder: true,
+            leading: Icon(Icons.search),
           ),
         ),
         Expanded(
@@ -495,10 +492,15 @@ class _PeerSharesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: tokens.bg,
-      appBar: AppBar(
-        title: Text(peer.name.isEmpty ? peer.peerId.value : peer.name),
+      appBar: MiuixSmallTopAppBar(
+        title: peer.name.isEmpty ? peer.peerId.value : peer.name,
+        navigationIcon: AppIconButton(
+          tooltip: '返回',
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
       ),
       body: shares.isEmpty
           ? Center(
@@ -513,8 +515,8 @@ class _PeerSharesSheet extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (BuildContext context, int index) {
                 final SharedRootView view = shares[index];
-                return Card(
-                  child: ListTile(
+                return MiuixCard(
+                  child: AppListTile(
                     leading: Icon(
                       view.share.kind == 'file'
                           ? Icons.insert_drive_file_outlined
@@ -568,7 +570,7 @@ class _ListHeader extends StatelessWidget {
           Text(trailing, style: TextStyle(fontSize: 12, color: tokens.fgDim)),
           const Spacer(),
           if (onAddGroup != null)
-            IconButton(
+            AppIconButton(
               tooltip: '新建分组',
               icon: Icon(
                 Icons.group_add_outlined,

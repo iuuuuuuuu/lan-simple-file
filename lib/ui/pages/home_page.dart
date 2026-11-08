@@ -8,6 +8,9 @@
 library;
 
 import 'package:flutter/material.dart';
+
+import '../widgets/app_controls.dart';
+
 import 'package:flutter/services.dart';
 
 import 'dart:io';
@@ -118,8 +121,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         systemStatusBarContrastEnforced: false,
         systemNavigationBarContrastEnforced: false,
       ),
-      child: Scaffold(
+      child: AppScaffold(
         backgroundColor: tokens.bg,
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           top: !mobile,
           child: Column(

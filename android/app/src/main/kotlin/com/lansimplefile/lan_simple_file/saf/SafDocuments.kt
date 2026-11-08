@@ -59,31 +59,29 @@ internal class SafDocuments(private val context: Context, private val resolver: 
             DocumentsContract.Document.COLUMN_LAST_MODIFIED,
         )
 
-        /** 分页排序键：documentId 全序且唯一，跨调用稳定。 */
-        private val CURSOR_ORDER: Comparator<SafItem> = compareBy { it.documentId }
     }
 
     /**
      * 列出 [parentDocumentId] 下的一页子项。
      *
-     * 游标语义：返回 documentId 严格大于 [cursor] 的最小 [limit] 条，
-     * 按 documentId 升序。排序键与游标同构，所以翻页不重不漏，
-     * 即使两页之间有人塞进新文件也不会跳过未读项。
+     * Directories precede files, then documentId orders each kind. The cursor
+     * retains its kind so deletion between pages cannot change the boundary.
      */
     fun listChildren(
         treeUri: Uri,
         parentDocumentId: String,
         cursor: String?,
         limit: Int,
+        cursorIsDirectory: Boolean = false,
     ): List<SafItem> {
         if (limit <= 0) {
             throw SafFailure(SafErrorCode.INVALID_ARGUMENT, "limit 必须为正：$limit")
         }
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocumentId)
-        // 保留 documentId 最小的 limit 条：小顶堆的镜像，用大顶堆限制容量。
+        // Keep only the first limit entries, including their directory rank.
         val kept = java.util.PriorityQueue<SafItem>(
             limit,
-            CURSOR_ORDER.reversed(),
+            safListingOrder.reversed(),
         )
         var scanned = 0
         resolver.query(childrenUri, LIST_PROJECTION, null, null, null)?.use { c ->
@@ -96,7 +94,7 @@ internal class SafDocuments(private val context: Context, private val resolver: 
                     )
                 }
                 val item = readItem(c) ?: continue
-                if (cursor != null && item.documentId <= cursor) {
+                if (cursor != null && !isAfterSafCursor(item, cursor, cursorIsDirectory)) {
                     continue
                 }
                 kept.add(item)
@@ -106,7 +104,7 @@ internal class SafDocuments(private val context: Context, private val resolver: 
             }
         } ?: throw SafFailure(SafErrorCode.PROVIDER_OFFLINE, "子项查询返回空游标：$parentDocumentId")
 
-        return kept.sortedWith(CURSOR_ORDER)
+        return kept.sortedWith(safListingOrder)
     }
 
     /**

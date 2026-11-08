@@ -2,8 +2,15 @@
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../core/contracts/contracts.dart';
 import 'share_row.dart';
+
+int compareShareRecords(ShareRecord a, ShareRecord b) {
+  final folders = (b.kind == 'folder' ? 1 : 0) - (a.kind == 'folder' ? 1 : 0);
+  return folders != 0 ? folders : a.displayName.compareTo(b.displayName);
+}
 
 bool matchesShare(ShareRecord share, String query) {
   final text = query.trim().toLowerCase();
@@ -23,23 +30,22 @@ class _SharePickerDialogState extends State<SharePickerDialog> {
   String _query = '';
   @override
   Widget build(BuildContext context) {
-    final filtered = widget.shares
-        .where((s) => matchesShare(s, _query))
-        .toList();
-    return AlertDialog(
+    final filtered =
+        widget.shares.where((s) => matchesShare(s, _query)).toList()
+          ..sort(compareShareRecords);
+    return AppDialog(
       title: const Text('发送文件分享'),
       content: SizedBox(
         width: 480,
         height: 400,
         child: Column(
           children: [
-            TextField(
+            AppTextField(
               key: const ValueKey('share-picker-search'),
               onChanged: (text) => setState(() => _query = text),
-              decoration: const InputDecoration(
-                hintText: '搜索分享名称或文件位置',
-                prefixIcon: Icon(Icons.search),
-              ),
+              label: '搜索分享名称或文件位置',
+              placeholder: true,
+              leading: Icon(Icons.search),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -53,7 +59,7 @@ class _SharePickerDialogState extends State<SharePickerDialog> {
                       itemCount: filtered.length,
                       itemBuilder: (_, index) {
                         final share = filtered[index];
-                        return ListTile(
+                        return AppListTile(
                           key: ValueKey('pick-share-${share.id.value}'),
                           leading: Icon(
                             share.kind == 'file'
@@ -79,7 +85,7 @@ class _SharePickerDialogState extends State<SharePickerDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        AppButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),

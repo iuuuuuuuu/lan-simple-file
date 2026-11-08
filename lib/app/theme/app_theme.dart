@@ -8,9 +8,25 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_miuix/miuix.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tokens.dart';
+
+/// Keep native system bars, legacy content tokens and Miuix on the same mode.
+class AppMiuixTheme extends StatelessWidget {
+  const AppMiuixTheme({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MiuixTheme(
+    data: MiuixThemeData.of(
+      Theme.of(context).brightness,
+      fontWeightAdjustment: MediaQuery.boldTextOf(context) ? 100 : 0,
+    ),
+    child: Material(type: MaterialType.transparency, child: child),
+  );
+}
 
 /// 主题模式三态：跟随系统 / 强制明色 / 强制暗色。
 enum AppThemeMode {
@@ -122,111 +138,9 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w600,
         ),
       ),
-      dividerTheme: DividerThemeData(color: t.line, thickness: 1, space: 1),
-      cardTheme: CardThemeData(
-        color: t.surface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: t.line),
-        ),
-      ),
-      listTileTheme: ListTileThemeData(
-        iconColor: t.fgDim,
-        textColor: t.fg,
-        selectedColor: t.accent,
-        selectedTileColor: t.accent.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: t.surface,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: t.accent.withValues(alpha: 0.14),
-        elevation: 0,
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-          final bool selected = states.contains(WidgetState.selected);
-          return IconThemeData(size: 22, color: selected ? t.accent : t.fgDim);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((
-          Set<WidgetState> states,
-        ) {
-          final bool selected = states.contains(WidgetState.selected);
-          return TextStyle(
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            color: selected ? t.accent : t.fgDim,
-          );
-        }),
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: t.bg,
-        indicatorColor: t.accent.withValues(alpha: 0.14),
-        selectedIconTheme: IconThemeData(color: t.accent, size: 22),
-        unselectedIconTheme: IconThemeData(color: t.fgDim, size: 22),
-        selectedLabelTextStyle: TextStyle(
-          color: t.accent,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelTextStyle: TextStyle(color: t.fgDim, fontSize: 12),
-      ),
       iconTheme: IconThemeData(color: t.fgDim, size: 20),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: t.accent,
-          foregroundColor: onAccent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: t.accent),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: t.fg,
-          side: BorderSide(color: t.line),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationThemeData(
-        filled: true,
-        fillColor: t.bg,
-        hintStyle: TextStyle(color: t.fgDim),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: t.line),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: t.line),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: t.accent, width: 1.5),
-        ),
-      ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: t.accent,
-        linearTrackColor: t.line,
-        circularTrackColor: t.line,
-      ),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: t.fg,
-        contentTextStyle: TextStyle(color: isDark ? t.bg : t.surface),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      tooltipTheme: TooltipThemeData(
-        decoration: BoxDecoration(
-          color: t.fg,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        textStyle: TextStyle(color: isDark ? t.bg : t.surface, fontSize: 12),
-      ),
+      // Miuix owns field decoration; its inner Material TextField stays clear.
+      inputDecorationTheme: const InputDecorationThemeData(filled: false),
       scrollbarTheme: ScrollbarThemeData(
         thumbColor: WidgetStatePropertyAll<Color>(
           t.fgDim.withValues(alpha: 0.5),

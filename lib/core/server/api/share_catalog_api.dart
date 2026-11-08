@@ -43,6 +43,14 @@ void registerShareCatalogRoutes(
         'href': browsable ? '/s/${Uri.encodeComponent(share.id.value)}' : null,
       });
     }
+    entries.sort((a, b) {
+      final aFolder = a['kind'] == 'folder', bFolder = b['kind'] == 'folder';
+      return aFolder == bFolder
+          ? (a['name'] as String).compareTo(b['name'] as String)
+          : aFolder
+          ? -1
+          : 1;
+    });
     await jsonResponse(request.response, HttpStatus.ok, {
       'owner': {
         'name': nameReader(),

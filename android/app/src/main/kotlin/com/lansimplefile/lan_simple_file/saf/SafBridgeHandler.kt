@@ -91,7 +91,8 @@ internal class SafBridgeHandler(context: Context, messenger: BinaryMessenger) :
         val documentId = requireDocumentId(call, "documentId")
         val cursor = call.argument<String>("cursor")?.takeIf { it.isNotEmpty() }
         val limit = requireLimit(call, "limit")
-        return documents.listChildren(treeUri, documentId, cursor, limit).map { it.toMap() }
+        val cursorIsDirectory = call.argument<Boolean>("cursorIsDirectory") ?: false
+        return documents.listChildren(treeUri, documentId, cursor, limit, cursorIsDirectory).map { it.toMap() }
     }
 
     private fun statItem(call: MethodCall): Map<String, Any?> {

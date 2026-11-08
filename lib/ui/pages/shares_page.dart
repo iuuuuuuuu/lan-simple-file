@@ -24,6 +24,9 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../widgets/app_controls.dart';
+
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 
@@ -37,7 +40,8 @@ import '../widgets/app_toast.dart';
 import '../widgets/qr_panel.dart';
 import '../widgets/share_detail_panel.dart';
 import '../widgets/share_row.dart';
-import '../widgets/share_picker_dialog.dart' show matchesShare;
+import '../widgets/share_picker_dialog.dart'
+    show matchesShare, compareShareRecords;
 import '../widgets/edit_name_dialog.dart';
 import 'nearby_page.dart' show ServicesNotConnected;
 
@@ -378,7 +382,7 @@ class _SharesPageState extends State<SharesPage> {
   }
 
   Future<void> _rename(ShareRecord share) async {
-    final String? name = await showDialog<String>(
+    final String? name = await showAppDialog<String>(
       context: context,
       builder: (_) => EditNameDialog(
         title: '设置分享名称',
@@ -412,20 +416,20 @@ class _SharesPageState extends State<SharesPage> {
 
   /// 删除是终态操作：先弹二次确认，确认后才真删。
   Future<void> _confirmDelete(ShareRecord share) async {
-    final bool? confirmed = await showDialog<bool>(
+    final bool? confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
+      builder: (BuildContext ctx) => AppDialog(
         title: const Text('删除这条分享？'),
         content: Text(
           '「${share.displayName}」将从列表里移除，链接立即失效。\n'
           '你磁盘上的原始文件不会被删除——本工具只记录文件位置。',
         ),
         actions: <Widget>[
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          AppButton.primary(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('删除'),
           ),
@@ -487,7 +491,7 @@ class _SharesPageState extends State<SharesPage> {
     }
     setState(() => _expandedId = share.id.value);
     try {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
         builder: (BuildContext dialogContext) => _ShareDetailDialog(
@@ -519,7 +523,7 @@ class _SharesPageState extends State<SharesPage> {
       builder: (BuildContext context, AsyncSnapshot<List<ShareRecord>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: MiuixCircularProgressIndicator());
         }
         if (snapshot.hasError) {
           return Center(
@@ -534,9 +538,9 @@ class _SharesPageState extends State<SharesPage> {
           );
         }
         final List<ShareRecord> shares = snapshot.data ?? const <ShareRecord>[];
-        final visibleShares = shares
-            .where((share) => matchesShare(share, _search))
-            .toList();
+        final visibleShares =
+            shares.where((share) => matchesShare(share, _search)).toList()
+              ..sort(compareShareRecords);
         return Column(
           children: <Widget>[
             Padding(
@@ -557,7 +561,7 @@ class _SharesPageState extends State<SharesPage> {
                     style: TextStyle(fontSize: 12, color: tokens.fgDim),
                   ),
                   const Spacer(),
-                  IconButton(
+                  AppIconButton(
                     tooltip: '刷新',
                     icon: Icon(Icons.refresh, size: 18, color: tokens.fgDim),
                     onPressed: _reload,
@@ -591,21 +595,21 @@ class _SharesPageState extends State<SharesPage> {
                             ),
                           ),
                         ),
-                        IconButton(
+                        AppIconButton(
                           tooltip: '复制我的分享地址',
                           icon: const Icon(Symbols.content_copy, size: 18),
                           onPressed: uri == null
                               ? null
                               : () => _copyHomeLink(uri),
                         ),
-                        IconButton(
+                        AppIconButton(
                           tooltip: '我的分享二维码',
                           icon: const Icon(Symbols.qr_code_2, size: 18),
                           onPressed: uri == null
                               ? null
-                              : () => showDialog<void>(
+                              : () => showAppDialog<void>(
                                   context: context,
-                                  builder: (context) => AlertDialog(
+                                  builder: (context) => AppDialog(
                                     title: const Text('我的分享'),
                                     content: SizedBox(
                                       width: 240,
@@ -617,7 +621,7 @@ class _SharesPageState extends State<SharesPage> {
                                       ),
                                     ),
                                     actions: [
-                                      IconButton(
+                                      AppIconButton(
                                         tooltip: '关闭',
                                         onPressed: () =>
                                             Navigator.of(context).pop(),
@@ -634,13 +638,12 @@ class _SharesPageState extends State<SharesPage> {
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-              child: TextField(
+              child: AppTextField(
                 key: const ValueKey('my-shares-search'),
                 onChanged: (text) => setState(() => _search = text),
-                decoration: const InputDecoration(
-                  hintText: '搜索分享名称或文件位置',
-                  prefixIcon: Icon(Icons.search),
-                ),
+                label: '搜索分享名称或文件位置',
+                placeholder: true,
+                leading: Icon(Icons.search),
               ),
             ),
             Expanded(
@@ -1086,9 +1089,9 @@ class _ShareActionsMenuState extends State<ShareActionsMenu> {
             key: const ValueKey<String>('share-actions-menu'),
             width: 26,
             height: 26,
-            child: InkWell(
+            child: MiuixPressable(
               key: _anchorKey,
-              onTap: _toggle,
+              onPressed: _toggle,
               borderRadius: BorderRadius.circular(LanFileMetrics.radiusRow),
               // 默认态也带一个浅圆底 + 描边：用户实测反馈「icon 也看不到」，
               // 白卡上一个淡灰小点确实容易消失。给个可点击的形状，
@@ -1147,79 +1150,55 @@ class _MenuPopover extends StatelessWidget {
     required this.items,
     required this.groupId,
   });
-
   final Offset anchor;
   final double anchorWidth;
   final VoidCallback onDismiss;
-
-  /// 指针进入/离开菜单区域：图标到菜单之间有空隙，靠这两个回调
-  /// 配合缓冲计时器，避免鼠标一移动菜单就消失。
   final VoidCallback onPointerEnter;
   final VoidCallback onPointerExit;
   final List<ShareMenuItem> items;
   final Object groupId;
 
-  static const double _width = 188;
-
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    // 贴着图标下方展开，右边缘与图标右边缘对齐（菜单比图标宽，向左伸）。
     final size = MediaQuery.sizeOf(context);
-    final menuHeight =
-        10.0 +
-        items.length * 36 +
-        items.where((i) => i.dividerBefore).length * 9;
-    final double left = (anchor.dx + anchorWidth - _width)
-        .clamp(8, size.width - _width - 8)
-        .toDouble();
-    final double top = (anchor.dy + 34)
-        .clamp(8, (size.height - menuHeight - 8).clamp(8, double.infinity))
-        .toDouble();
+    final width = (size.width - 16).clamp(0.0, 320.0);
+    final height = (items.length * 60.0 + 24).clamp(0.0, size.height - 16);
+    final left = (anchor.dx + anchorWidth - width).clamp(
+      8.0,
+      size.width - width - 8,
+    );
+    final top = (anchor.dy + 34).clamp(
+      8.0,
+      (size.height - height - 8).clamp(8.0, double.infinity),
+    );
     return Stack(
-      children: <Widget>[
+      children: [
         Positioned(
-          left: left < 8 ? 8 : left,
+          left: left,
           top: top,
-          width: _width,
+          width: width,
           child: TapRegion(
             groupId: groupId,
             onTapOutside: (_) => onDismiss(),
             child: MouseRegion(
               onEnter: (_) => onPointerEnter(),
               onExit: (_) => onPointerExit(),
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: tokens.surface,
-                    borderRadius: BorderRadius.circular(
-                      LanFileMetrics.radiusCard,
-                    ),
-                    border: Border.all(color: tokens.cardLine),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: tokens.shadowColor,
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      for (final ShareMenuItem item in items) ...<Widget>[
-                        if (item.dividerBefore)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            child: Divider(height: 1, color: tokens.line),
-                          ),
-                        _MenuRow(item: item, onDismiss: onDismiss),
-                      ],
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: size.height - top - 8),
+                child: MiuixCard(
+                  child: AppMenuList(
+                    children: [
+                      for (final item in items)
+                        AppListTile(
+                          title: Text(item.label),
+                          leading: Icon(item.icon, size: 20),
+                          enabled: item.enabled,
+                          dense: true,
+                          onTap: () {
+                            onDismiss();
+                            item.onTap();
+                          },
+                        ),
                     ],
                   ),
                 ),
@@ -1228,59 +1207,6 @@ class _MenuPopover extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _MenuRow extends StatefulWidget {
-  const _MenuRow({required this.item, required this.onDismiss});
-
-  final ShareMenuItem item;
-  final VoidCallback onDismiss;
-
-  @override
-  State<_MenuRow> createState() => _MenuRowState();
-}
-
-class _MenuRowState extends State<_MenuRow> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    final ShareMenuItem item = widget.item;
-    final Color fg = !item.enabled
-        ? tokens.fgDim
-        : (item.danger ? tokens.accent : tokens.fg);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: item.enabled
-            ? () {
-                widget.onDismiss();
-                item.onTap();
-              }
-            : null,
-        child: Container(
-          height: 36,
-          color: _hover && item.enabled ? tokens.hoverSoft : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: <Widget>[
-              Icon(item.icon, size: 16, color: fg),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  item.label,
-                  style: TextStyle(fontSize: 13, color: fg),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1361,7 +1287,9 @@ class _WebLinkQrSectionState extends State<_WebLinkQrSection> {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.all(12),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            child: Center(
+              child: MiuixCircularProgressIndicator(strokeWidth: 2),
+            ),
           );
         }
         final Uri? uri = snap.data;
@@ -1452,13 +1380,9 @@ class _ShareDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    return Dialog(
-      backgroundColor: tokens.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LanFileMetrics.radiusPanel),
-        side: BorderSide(color: tokens.cardLine),
-      ),
-      child: SizedBox(
+    return AppDialog(
+      maxWidth: 808,
+      content: SizedBox(
         width: 760,
         height: 520,
         child: Column(
@@ -1472,7 +1396,7 @@ class _ShareDetailDialog extends StatelessWidget {
                   Icon(Symbols.folder_open, size: 20, color: tokens.accent),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Tooltip(
+                    child: AppTooltip(
                       message: shareLocationLabel(share),
                       child: Text(
                         shareLocationLabel(share),
@@ -1486,7 +1410,7 @@ class _ShareDetailDialog extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
+                  AppIconButton(
                     tooltip: '关闭',
                     icon: Icon(Symbols.close, size: 18, color: tokens.fgDim),
                     onPressed: () => Navigator.of(context).pop(),
@@ -1494,7 +1418,7 @@ class _ShareDetailDialog extends StatelessWidget {
                 ],
               ),
             ),
-            Divider(height: 1, color: tokens.line),
+            AppDivider(height: 1, color: tokens.line),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1514,7 +1438,7 @@ class _ShareDetailDialog extends StatelessWidget {
                       ),
                     ),
                   ),
-                  VerticalDivider(width: 1, color: tokens.line),
+                  AppVerticalDivider(width: 1, color: tokens.line),
                   // 右栏：文件列表，**内部独立滚动**。
                   Expanded(
                     child: SingleChildScrollView(

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/ui/widgets/share_upload_sheet.dart';
 
 import 'qq_shell_test.dart' show setViewport, wrapShell;
@@ -11,7 +14,7 @@ void main() {
     final selected = <ShareUploadKind?>[];
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: Builder(
             builder: (context) => IconButton(
               key: const ValueKey('open-picker'),
@@ -29,10 +32,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('open-picker')));
     await tester.pumpAndSettle();
     final folder = tester
-        .widget<ListTile>(find.byKey(const ValueKey('share-upload-folder')))
+        .widget<AppListTile>(find.byKey(const ValueKey('share-upload-folder')))
         .onTap!;
     final file = tester
-        .widget<ListTile>(find.byKey(const ValueKey('share-upload-file')))
+        .widget<AppListTile>(find.byKey(const ValueKey('share-upload-file')))
         .onTap!;
     folder();
     file();

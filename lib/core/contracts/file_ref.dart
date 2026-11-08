@@ -79,6 +79,8 @@ abstract interface class FileRef {
   FileEntry toEntry();
 
   /// 列出一页子项；对文件调用应抛 LanFileException。
+  /// Directories come first, then itemKey orders each kind. Pass the opaque
+  /// nextCursor back unchanged; it is not necessarily an itemKey.
   Future<FileEntryPage> list({String? cursor, int limit});
 
   /// 取得子项句柄。

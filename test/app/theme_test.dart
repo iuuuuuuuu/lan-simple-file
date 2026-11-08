@@ -6,39 +6,46 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_miuix/miuix.dart';
 import 'package:lan_simple_file/app/app.dart';
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 
 void main() {
   group('LanFilePalette 色值', () {
-    test('明色六个 token 与计划一致', () {
+    test('明色六个 token 与 Miuix 一致', () {
       const LanFileTokens t = LanFilePalette.light;
+      final colors = MiuixThemeData.of(Brightness.light).colors;
       expect(t.brightness, Brightness.light);
-      expect(t.bg, const Color(0xFFF7F8FA));
-      expect(t.surface, const Color(0xFFFFFFFF));
-      expect(t.line, const Color(0xFFE5E7EB));
-      expect(t.fg, const Color(0xFF16181D));
-      expect(t.fgDim, const Color(0xFF6B7280));
-      expect(t.accent, const Color(0xFF3B82F6));
+      expect(t.bg, colors.surface);
+      expect(t.surface, colors.background);
+      expect(t.line, colors.dividerLine);
+      expect(t.fg, colors.onSurface);
+      expect(t.fgDim, colors.onSurfaceVariantSummary);
+      expect(t.accent, colors.primary);
     });
 
-    test('暗色六个 token 与计划一致', () {
+    test('暗色六个 token 与 Miuix 一致', () {
       const LanFileTokens t = LanFilePalette.dark;
+      final colors = MiuixThemeData.of(Brightness.dark).colors;
       expect(t.brightness, Brightness.dark);
-      expect(t.bg, const Color(0xFF0E1116));
-      expect(t.surface, const Color(0xFF161A21));
-      expect(t.line, const Color(0xFF242A33));
-      expect(t.fg, const Color(0xFFE6E9EF));
-      expect(t.fgDim, const Color(0xFF8B94A3));
-      expect(t.accent, const Color(0xFF4F8DFD));
+      expect(t.bg, colors.surface);
+      expect(t.surface, colors.background);
+      expect(t.line, colors.dividerLine);
+      expect(t.fg, colors.onSurface);
+      expect(t.fgDim, colors.onSurfaceVariantSummary);
+      expect(t.accent, colors.primary);
     });
 
     test('of() 按亮度返回对应 token', () {
-      expect(identical(LanFilePalette.of(Brightness.light),
-          LanFilePalette.light), isTrue);
-      expect(identical(LanFilePalette.of(Brightness.dark),
-          LanFilePalette.dark), isTrue);
+      expect(
+        identical(LanFilePalette.of(Brightness.light), LanFilePalette.light),
+        isTrue,
+      );
+      expect(
+        identical(LanFilePalette.of(Brightness.dark), LanFilePalette.dark),
+        isTrue,
+      );
     });
 
     test('两套 token 的六个槽位全部互不相同', () {
@@ -60,16 +67,31 @@ void main() {
         LanFilePalette.light,
         LanFilePalette.dark,
       ]) {
-        final List<Color> greys = <Color>[t.bg, t.surface, t.line, t.fg, t.fgDim];
+        final List<Color> greys = <Color>[
+          t.bg,
+          t.surface,
+          t.line,
+          t.fg,
+          t.fgDim,
+        ];
         for (final Color c in greys) {
           if (_isNeutral(c)) continue; // 纯白 surface 无色相
-          expect((_hueOf(c) - _hueOf(t.accent)).abs(), lessThanOrEqualTo(10),
-              reason: '$c 的色相应贴近主色色相，不能引入第二个色相');
-          expect(_saturationOf(c), lessThanOrEqualTo(40.0),
-              reason: '$c 应是低饱和的灰阶，不抢主色');
+          expect(
+            (_hueOf(c) - _hueOf(t.accent)).abs(),
+            lessThanOrEqualTo(10),
+            reason: '$c 的色相应贴近主色色相，不能引入第二个色相',
+          );
+          expect(
+            _saturationOf(c),
+            lessThanOrEqualTo(40.0),
+            reason: '$c 应是低饱和的灰阶，不抢主色',
+          );
         }
-        expect(_saturationOf(t.accent), greaterThanOrEqualTo(60.0),
-            reason: '主色必须是高饱和的唯一强调色');
+        expect(
+          _saturationOf(t.accent),
+          greaterThanOrEqualTo(60.0),
+          reason: '主色必须是高饱和的唯一强调色',
+        );
       }
     });
 
@@ -138,7 +160,10 @@ void main() {
     });
 
     test('主题关键槽位全部来自 token', () {
-      for (final ThemeData theme in <ThemeData>[AppTheme.light, AppTheme.dark]) {
+      for (final ThemeData theme in <ThemeData>[
+        AppTheme.light,
+        AppTheme.dark,
+      ]) {
         final LanFileTokens t = theme.extension<LanFileTokens>()!;
         expect(theme.brightness, t.brightness);
         expect(theme.scaffoldBackgroundColor, t.bg);
@@ -150,13 +175,15 @@ void main() {
         expect(theme.colorScheme.onSurfaceVariant, t.fgDim);
         expect(theme.dividerColor, t.line);
         expect(theme.appBarTheme.backgroundColor, t.bg);
-        expect(theme.cardTheme.color, t.surface);
-        expect(theme.navigationBarTheme.backgroundColor, t.surface);
+        expect(theme.inputDecorationTheme.filled, isFalse);
       }
     });
 
     test('ColorScheme 里不出现第三个色相（error/secondary 也收敛到 token）', () {
-      for (final ThemeData theme in <ThemeData>[AppTheme.light, AppTheme.dark]) {
+      for (final ThemeData theme in <ThemeData>[
+        AppTheme.light,
+        AppTheme.dark,
+      ]) {
         final LanFileTokens t = theme.extension<LanFileTokens>()!;
         final ColorScheme s = theme.colorScheme;
         expect(s.error, t.fg);
@@ -174,8 +201,11 @@ void main() {
           s.outline,
         ]) {
           if (_isNeutral(c)) continue;
-          expect((_hueOf(c) - accentHue).abs(), lessThanOrEqualTo(10),
-              reason: '$c 引入了与主色不同的色相');
+          expect(
+            (_hueOf(c) - accentHue).abs(),
+            lessThanOrEqualTo(10),
+            reason: '$c 引入了与主色不同的色相',
+          );
         }
       }
     });
@@ -214,8 +244,7 @@ void main() {
   });
 
   group('tokensOf 回落行为', () {
-    testWidgets('context 上的扩展缺失时按亮度回落，不抛异常',
-        (WidgetTester tester) async {
+    testWidgets('context 上的扩展缺失时按亮度回落，不抛异常', (WidgetTester tester) async {
       late LanFileTokens resolved;
       await tester.pumpWidget(
         MaterialApp(
@@ -243,10 +272,16 @@ bool _isNeutral(Color c) {
 
 /// 饱和度百分比（HSV 的 S）。
 double _saturationOf(Color c) {
-  final double max = <double>[c.r, c.g, c.b]
-      .reduce((double a, double v) => a > v ? a : v);
-  final double min = <double>[c.r, c.g, c.b]
-      .reduce((double a, double v) => a < v ? a : v);
+  final double max = <double>[
+    c.r,
+    c.g,
+    c.b,
+  ].reduce((double a, double v) => a > v ? a : v);
+  final double min = <double>[
+    c.r,
+    c.g,
+    c.b,
+  ].reduce((double a, double v) => a < v ? a : v);
   if (max == 0) return 0;
   return (max - min) / max * 100;
 }
@@ -256,8 +291,16 @@ int _hueOf(Color c) {
   final double r = c.r;
   final double g = c.g;
   final double b = c.b;
-  final double max = <double>[r, g, b].reduce((double a, double v) => a > v ? a : v);
-  final double min = <double>[r, g, b].reduce((double a, double v) => a < v ? a : v);
+  final double max = <double>[
+    r,
+    g,
+    b,
+  ].reduce((double a, double v) => a > v ? a : v);
+  final double min = <double>[
+    r,
+    g,
+    b,
+  ].reduce((double a, double v) => a < v ? a : v);
   final double delta = max - min;
   if (delta == 0) return 0;
   double h;
@@ -311,7 +354,7 @@ double _expApprox(double x) {
 }
 
 double _contrast(Color a, Color b) {
-  final double la = _relativeLuminance(a);
+  final double la = _relativeLuminance(Color.alphaBlend(a, b));
   final double lb = _relativeLuminance(b);
   final double hi = la > lb ? la : lb;
   final double lo = la > lb ? lb : la;

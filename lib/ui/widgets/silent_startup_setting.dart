@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../shell/startup_behavior.dart';
 import 'setting_row.dart';
 
@@ -37,7 +39,7 @@ class _SilentStartupSettingState extends State<SilentStartupSetting> {
     builder: (context, enabled, _) => SettingRow(
       label: '静默启动',
       subtitle: _error ?? '下次启动时进入托盘，后台分享继续运行',
-      trailing: Switch(value: enabled, onChanged: _busy ? null : _change),
+      trailing: MiuixSwitch(value: enabled, onChanged: _busy ? null : _change),
     ),
   );
 }

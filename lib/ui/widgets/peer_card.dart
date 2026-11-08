@@ -10,6 +10,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
 import '../../core/contracts/contracts.dart';
@@ -62,9 +64,9 @@ class PeerCard extends StatelessWidget {
 
     return Opacity(
       opacity: opacity,
-      child: Card(
-        child: InkWell(
-          onTap: onTap,
+      child: MiuixCard(
+        child: MiuixPressable(
+          onPressed: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

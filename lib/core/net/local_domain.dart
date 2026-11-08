@@ -3,10 +3,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../diagnostics/network_log.dart';
 import 'lan_address_guard.dart';
+import 'lan_interfaces.dart';
 
 /// An ASCII DNS label; browsers send IDNA names even for Chinese nicknames.
 String localDomainLabel(String username, String deviceId) {
@@ -293,12 +296,20 @@ class LocalDomainService {
       );
       _socket!.multicastHops = 255;
       _socket!.multicastLoopback = true;
+      NetworkLog.record('mdns.bound', {
+        'address': _socket!.address.address,
+        'port': _socket!.port,
+      });
       _events = _socket!.listen(
         _receive,
         onError: (Object e) {
+          NetworkLog.record('mdns.channel_error', NetworkLog.errorFields(e));
           error = e.toString();
           ready = false;
           _notify();
+        },
+        onDone: () {
+          NetworkLog.record('mdns.done', {'expected': _closed});
         },
       );
       await refresh();
@@ -307,6 +318,7 @@ class LocalDomainService {
         (_) => unawaited(refresh()),
       );
     } on Object catch (e) {
+      NetworkLog.record('mdns.start_error', NetworkLog.errorFields(e));
       error = '局域网域名广播不可用：$e';
       ready = false;
       _notify();
@@ -342,6 +354,7 @@ class LocalDomainService {
         await _claim();
       }
     } on Object catch (e) {
+      NetworkLog.record('mdns.refresh_error', NetworkLog.errorFields(e));
       error = '局域网域名广播不可用：$e';
       ready = false;
       _notify();
@@ -359,8 +372,8 @@ class LocalDomainService {
       s.close();
     }
     _senders.clear();
-    for (final iface in await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
+    for (final iface in await lanInterfaces(
+      await NetworkInterface.list(type: InternetAddressType.IPv4),
     )) {
       for (final a in iface.addresses) {
         if (a.isLoopback || !LanAddressGuard.allowsCleartext(a.address)) {
@@ -370,12 +383,21 @@ class LocalDomainService {
           if (!_joined.contains(iface.index)) {
             _socket!.joinMulticast(InternetAddress('224.0.0.251'), iface);
             _joined.add(iface.index);
+            NetworkLog.record('mdns.join', {
+              'interface': iface.name,
+              'address': a.address,
+            });
           }
           final s = await RawDatagramSocket.bind(a, 0, reuseAddress: true);
           s.multicastHops = 255;
           s.multicastLoopback = true;
           _senders.add(s);
-        } on SocketException {
+        } on SocketException catch (e) {
+          NetworkLog.record('mdns.join_error', {
+            'interface': iface.name,
+            'address': a.address,
+            ...NetworkLog.errorFields(e),
+          });
           /* Another usable interface may succeed. */
         }
       }
@@ -425,6 +447,12 @@ class LocalDomainService {
   }
 
   void _notify() {
+    NetworkLog.record('mdns.state', {
+      'host': host,
+      'ip': ip,
+      'ready': ready,
+      'hasError': error != null,
+    });
     if (!_closed) _changes.add(null);
   }
 
@@ -442,11 +470,26 @@ class LocalDomainService {
             sender.address.rawAddress,
           ),
         );
-        sent =
-            _socket!.send(data, InternetAddress('224.0.0.251'), 5353) > 0 ||
-            sent;
+        final written = _socket!.send(
+          data,
+          InternetAddress('224.0.0.251'),
+          5353,
+        );
+        sent = written > 0 || sent;
+        NetworkLog.record('mdns.send', {
+          'interfaceAddress': sender.address.address,
+          'target': '224.0.0.251',
+          'port': 5353,
+          'written': written,
+        });
       } on Object catch (e) {
         error = e.toString();
+        NetworkLog.record('mdns.send_error', {
+          'interfaceAddress': sender.address.address,
+          'target': '224.0.0.251',
+          'port': 5353,
+          ...NetworkLog.errorFields(e),
+        });
       }
     }
     return sent;
@@ -516,6 +559,12 @@ class LocalDomainService {
           )
           .toList();
       if (questions.isEmpty) continue;
+      NetworkLog.record('mdns.query', {
+        'source': d.address.address,
+        'port': d.port,
+        'host': host,
+        'types': questions.map((q) => q.type).toList(),
+      });
       final legacy = d.port != 5353;
       final unicast = legacy || questions.any((q) => q.unicast);
       final answers = <DnsRecord>[];
@@ -554,7 +603,22 @@ class LocalDomainService {
         answers: answers,
       ).encode(cacheFlush: !legacy);
       if (unicast) {
-        _socket!.send(reply, d.address, d.port);
+        try {
+          final written = _socket!.send(reply, d.address, d.port);
+          NetworkLog.record('mdns.reply', {
+            'target': d.address.address,
+            'port': d.port,
+            'written': written,
+          });
+        } on SocketException catch (e) {
+          NetworkLog.record('mdns.reply_error', {
+            'target': d.address.address,
+            'port': d.port,
+            ...NetworkLog.errorFields(e),
+          });
+          error = e.toString();
+          _notify();
+        }
       } else {
         _send(reply);
       }

@@ -44,7 +44,7 @@ final class LanFileTokens extends ThemeExtension<LanFileTokens> {
   final Color accent;
 
   /// 主色之上应当使用的文字色。
-  Color get onAccent => isDark ? bg : surface;
+  Color get onAccent => const Color(0xFFFFFFFF);
 
   /// 是否暗色主题。
   bool get isDark => brightness == Brightness.dark;
@@ -96,48 +96,41 @@ final class LanFileTokens extends ThemeExtension<LanFileTokens> {
       other.accent == accent;
 
   @override
-  int get hashCode => Object.hash(
-        brightness,
-        bg,
-        surface,
-        line,
-        fg,
-        fgDim,
-        accent,
-      );
+  int get hashCode =>
+      Object.hash(brightness, bg, surface, line, fg, fgDim, accent);
 }
 
 /// 明暗两套 token 的常量入口。
 ///
-/// 色值逐字对应 docs/plan.md §7.1，改动必须同步决策笔记
-/// .agents/notes/implemented/feature/2026-11-04-dual-tone-theme-and-identicon.md。
+/// Content tokens mirror flutter_miuix's surface, text and primary roles.
 abstract final class LanFilePalette {
   /// 明色主题。
   static const LanFileTokens light = LanFileTokens(
     brightness: Brightness.light,
-    bg: Color(0xFFF7F8FA),
+    bg: Color(0xFFF7F7F7),
     surface: Color(0xFFFFFFFF),
-    line: Color(0xFFE5E7EB),
-    fg: Color(0xFF16181D),
-    fgDim: Color(0xFF6B7280),
-    accent: Color(0xFF3B82F6),
+    line: Color(0xFFE0E0E0),
+    fg: Color(0xFF000000),
+    fgDim: Color(0x99000000),
+    accent: Color(0xFF3482FF),
   );
 
   /// 暗色主题。
   static const LanFileTokens dark = LanFileTokens(
     brightness: Brightness.dark,
-    bg: Color(0xFF0E1116),
-    surface: Color(0xFF161A21),
-    line: Color(0xFF242A33),
-    fg: Color(0xFFE6E9EF),
-    fgDim: Color(0xFF8B94A3),
-    accent: Color(0xFF4F8DFD),
+    bg: Color(0xFF000000),
+    surface: Color(0xFF242424),
+    line: Color(0xFF393939),
+    fg: Color(0xFFF2F2F2),
+    fgDim: Color(0x80FFFFFF),
+    accent: Color(0xFF277AF7),
   );
 
   /// 按亮度取对应 token。
   static LanFileTokens of(Brightness brightness) =>
       brightness == Brightness.dark ? dark : light;
 }
+
 /// 视觉层次的尺寸与描边体系。
 ///
 /// 存在的理由：只有 6 个颜色 token 时，界面会退化成「所有区域一个底色」的系统设置感。
@@ -205,7 +198,8 @@ extension LanFileTokensLayers on LanFileTokens {
       : Color.alphaBlend(const Color(0x04000000), bg);
 
   /// 主色系的极淡底：选中的行、当前会话、hover 的高亮。
-  Color get accentSoft => Color.alphaBlend(accent.withValues(alpha: 0.10), surface);
+  Color get accentSoft =>
+      Color.alphaBlend(accent.withValues(alpha: 0.10), surface);
 
   /// hover 底色：比选中更淡，但可见。
   Color get hoverSoft => isDark
@@ -213,12 +207,10 @@ extension LanFileTokensLayers on LanFileTokens {
       : Color.alphaBlend(const Color(0x06000000), surface);
 
   /// 卡片描边：明色下几乎不可见但能定形，暗色下作为主要层次。
-  Color get cardLine => isDark
-      ? Color.alphaBlend(const Color(0x14FFFFFF), line)
-      : line;
+  Color get cardLine =>
+      isDark ? Color.alphaBlend(const Color(0x14FFFFFF), line) : line;
 
   /// 浮层阴影色（暗色下用更强的不透明度，因为暗背景吞阴影）。
-  Color get shadowColor => isDark
-      ? const Color(0x66000000)
-      : const Color(0x14000000);
+  Color get shadowColor =>
+      isDark ? const Color(0x66000000) : const Color(0x14000000);
 }

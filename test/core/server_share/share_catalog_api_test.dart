@@ -128,7 +128,7 @@ void main() {
       final entries = (payload['shares'] as List).cast<Map<String, dynamic>>();
       expect(
         entries.map((entry) => entry['name']),
-        unorderedEquals(['folder-token', 'file-lan']),
+        ['folder-token', 'file-lan'],
       );
       expect(
         entries.map((entry) => entry['href']),
@@ -204,6 +204,33 @@ void main() {
       }
       final response = await (await client.getUrl(url('/s/single/f/'))).close();
       expect(response.statusCode, 200);
+      expect(await response.transform(utf8.decoder).join(), 'exact-file-bytes');
+    },
+  );
+
+  test(
+    'app peer catalog uses the production HTTP catalog and tree routes',
+    () async {
+      final folderShare = await services.sharePath(folder.path);
+      await services.store.upsertShare(
+        record('private-app', mode: ShareMode.password),
+      );
+      final peerClient = services.peerShareClient(services.identity.peerId);
+      addTearDown(peerClient.close);
+      final result = await peerClient.catalog();
+      expect(result.name, 'Catalog Owner');
+      expect(result.shares.where((s) => s.id == folderShare.id).length, 1);
+      expect(
+        result.shares.firstWhere((s) => s.access == 'password').id,
+        isNull,
+      );
+      final files = await peerClient.browse(folderShare.id);
+      expect(files.entries.single.name, 'report.txt');
+      final response = await (await client.getUrl(
+        url(
+          '/s/${folderShare.id.value}/f/${files.entries.single.itemKey.value}',
+        ),
+      )).close();
       expect(await response.transform(utf8.decoder).join(), 'exact-file-bytes');
     },
   );

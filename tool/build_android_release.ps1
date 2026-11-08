@@ -1,6 +1,10 @@
 param(
     [string]$Flutter = 'flutter',
     [string]$Keytool = 'keytool',
+    [string]$TargetPlatform = 'android-arm,android-arm64,android-x64',
+    [string]$BuildName,
+    [string]$BuildNumber,
+    [switch]$NetworkDiagnostics,
     [switch]$InitializeSigningKey
 )
 
@@ -57,7 +61,11 @@ try {
     $env:LAN_SIMPLE_FILE_STORE_PASSWORD = $credential.GetNetworkCredential().Password
     $env:LAN_SIMPLE_FILE_KEY_PASSWORD = $env:LAN_SIMPLE_FILE_STORE_PASSWORD
     # --no-pub also skips release plugin registration in this Flutter SDK.
-    & $Flutter build apk --release --split-per-abi
+    $buildArguments = @('build', 'apk', '--release', '--split-per-abi', "--target-platform=$TargetPlatform")
+    if ($BuildName) { $buildArguments += @("--build-name=$BuildName", "--dart-define=APP_VERSION=$BuildName") }
+    if ($BuildNumber) { $buildArguments += "--build-number=$BuildNumber" }
+    if ($NetworkDiagnostics) { $buildArguments += '--dart-define=NETWORK_DIAGNOSTICS=true' }
+    & $Flutter @buildArguments
     if ($LASTEXITCODE -ne 0) { throw 'Android release build failed.' }
 } finally {
     foreach ($name in $names) {

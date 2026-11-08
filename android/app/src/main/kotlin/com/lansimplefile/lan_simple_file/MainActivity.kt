@@ -24,6 +24,8 @@ class MainActivity : FlutterActivity() {
 
     private var shareIntent: ShareIntentHandler? = null
     private var deviceInfo: MethodChannel? = null
+    private var diagnostics: NetworkDiagnosticsHandler? = null
+    private var lanNetwork: MethodChannel? = null
     private val discoveryMulticast by lazy { MulticastLockHolder(applicationContext) }
 
     /**
@@ -52,6 +54,25 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        lanNetwork = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lan_simple_file/lan_network",
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "getLanInterfaces") {
+                    try {
+                        result.success(readLanInterfaces(applicationContext))
+                    } catch (e: Exception) {
+                        result.error("lan_network", e.javaClass.simpleName, null)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
+        diagnostics = NetworkDiagnosticsHandler(this, flutterEngine.dartExecutor.binaryMessenger) {
+            discoveryMulticast.isHeld
+        }
 
         deviceInfo = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -115,6 +136,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        lanNetwork?.setMethodCallHandler(null)
+        lanNetwork = null
+        diagnostics?.detach()
+        diagnostics = null
         deviceInfo?.setMethodCallHandler(null)
         deviceInfo = null
         safBridge?.detach()
@@ -124,5 +149,11 @@ class MainActivity : FlutterActivity() {
         shareIntent?.detach()
         shareIntent = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    @Deprecated("Android activity result bridge")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (diagnostics?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 }

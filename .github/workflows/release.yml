@@ -54,6 +54,12 @@ jobs:
       - run: flutter analyze --no-pub
       - name: Serial functional regression
         run: flutter test --no-pub --concurrency=1 --exclude-tags=golden
+      - name: Headless web navigation regression
+        working-directory: test/web
+        run: |
+          npm ci
+          npx playwright install chromium --no-shell
+          npm test
 
   windows:
     needs: validate
@@ -83,7 +89,7 @@ jobs:
           flutter build windows --release --no-pub --target=test/windows/startup_probe.dart
           if ($LASTEXITCODE -ne 0) { throw 'Startup probe build failed.' }
           ./tool/test_windows_startup.ps1 -ProbeExecutable build/windows/x64/runner/Release/lan_simple_file.exe
-      - run: flutter build windows --release --no-pub --target=lib/main.dart
+      - run: flutter build windows --release --no-pub --target=lib/main.dart --dart-define=NETWORK_DIAGNOSTICS=true
       - name: Build installer and verify portable ZIP
         shell: pwsh
         run: |
@@ -138,7 +144,7 @@ jobs:
             echo 'Release registration must not include the integration test plugin.'
             exit 1
           fi
-      - name: Android native device-name regression
+      - name: Android native network, device-name and directory regression
         run: cd android && ./gradlew :app:testDebugUnitTest -Ptarget-platform=android-x64
       - name: Build signed APKs
         env:
@@ -153,7 +159,7 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$LAN_SIMPLE_FILE_KEYSTORE"
           chmod 600 "$LAN_SIMPLE_FILE_KEYSTORE"
           # --no-pub also skips release plugin registration in this Flutter SDK.
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --split-per-abi --dart-define=NETWORK_DIAGNOSTICS=true
       - name: Verify signatures, versions and architectures
         run: |
           version="${RELEASE_TAG#v}"

@@ -15,6 +15,8 @@ import 'package:lan_simple_file/app/widgets/identicon.dart';
 import 'package:lan_simple_file/ui/pages/home_page.dart';
 import 'package:lan_simple_file/ui/shell/qq_shell.dart' show kShellContentKey;
 
+import '../ui/support/miuix_test_support.dart';
+
 /// 用固定尺寸 + 指定主题模式装配被测树。
 Future<ProviderContainer> _pumpApp(
   WidgetTester tester, {
@@ -104,6 +106,21 @@ void main() {
   });
 
   group('三态主题切换', () {
+    testWidgets('手机搜索键盘只扣减一次高度并隐藏底部导航', (tester) async {
+      await _pumpApp(tester, size: const Size(360, 640));
+      await tester.showKeyboard(find.byKey(const ValueKey('session-search')));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('mobile-navigation')), findsNothing);
+      final search = tester.getRect(
+        find.byKey(const ValueKey('session-search')),
+      );
+      expect(search.bottom, lessThanOrEqualTo(340));
+      final list = tester.getRect(find.byKey(const ValueKey('shell-list')));
+      expect(list.bottom, closeTo(340, 1));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('默认跟随系统', (WidgetTester tester) async {
       final ProviderContainer c = await _pumpApp(tester);
       expect(c.read(themeModeProvider), AppThemeMode.system);
@@ -119,7 +136,7 @@ void main() {
       final ProviderContainer c = await _pumpApp(tester);
 
       Future<void> tapCycle() async {
-        await tester.tap(find.byTooltip(RegExp('^主题：')));
+        await tester.tap(findAppTooltip(RegExp('^主题：')));
         await tester.pumpAndSettle();
       }
 
@@ -151,14 +168,14 @@ void main() {
         mode: AppThemeMode.dark,
       );
       expect(c.read(themeModeProvider), AppThemeMode.dark);
-      final BuildContext ctx = tester.element(find.byType(Scaffold).first);
+      final BuildContext ctx = tester.element(find.byType(AppScaffold).first);
       expect(tokensOf(ctx), equals(LanFilePalette.dark));
       expect(Theme.of(ctx).scaffoldBackgroundColor, LanFilePalette.dark.bg);
     });
 
     testWidgets('强制明色时 token 是明色那套', (WidgetTester tester) async {
       await _pumpApp(tester, mode: AppThemeMode.light);
-      final BuildContext ctx = tester.element(find.byType(Scaffold).first);
+      final BuildContext ctx = tester.element(find.byType(AppScaffold).first);
       expect(tokensOf(ctx), equals(LanFilePalette.light));
     });
 

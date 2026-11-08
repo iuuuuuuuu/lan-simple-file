@@ -6,6 +6,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/shares_page.dart';
@@ -18,6 +21,22 @@ import 'support/ui_fakes.dart';
 void main() {
   // 每个用例后清掉静态 Toast，避免 OverlayEntry 残留到下一用例。
   tearDown(AppToast.dismiss);
+
+  testWidgets('my shares places folders above files', (tester) async {
+    final source = FakeMySharesSource()
+      ..shares = [
+        shareRecord(id: 'file_a', kind: 'file', displayName: 'a.txt'),
+        shareRecord(id: 'folder_z', kind: 'folder', displayName: 'z-folder'),
+      ];
+    await tester.pumpWidget(wrapWithTheme(SharesPage(source: source)));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widgetList<ShareRow>(find.byType(ShareRow))
+          .map((row) => row.share.displayName),
+      ['z-folder', 'a.txt'],
+    );
+  });
 
   group('分享主页地址', () {
     testWidgets('空列表也显示域名，复制和二维码都使用根地址', (tester) async {
@@ -46,10 +65,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(uri.toString()), findsOneWidget);
       expect(find.text('还没有分享'), findsOneWidget);
-      await tester.tap(find.byTooltip('复制我的分享地址'));
+      await tester.tap(findAppTooltip('复制我的分享地址'));
       await tester.pumpAndSettle();
       expect(copied, [uri.toString()]);
-      await tester.tap(find.byTooltip('我的分享二维码'));
+      await tester.tap(findAppTooltip('我的分享二维码'));
       await tester.pumpAndSettle();
       expect(
         tester.widget<QrPanel>(find.byType(QrPanel)).linkText,
@@ -61,7 +80,7 @@ void main() {
     testWidgets('地址不可用时禁用操作，刷新后更新域名和端口', (tester) async {
       Uri? uri;
       final copyButton = find.byWidgetPredicate(
-        (widget) => widget is IconButton && widget.tooltip == '复制我的分享地址',
+        (widget) => widget is AppIconButton && widget.tooltip == '复制我的分享地址',
       );
       await tester.pumpWidget(
         wrapWithTheme(
@@ -69,13 +88,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.widget<IconButton>(copyButton).onPressed, isNull);
+      expect(tester.widget<AppIconButton>(copyButton).onPressed, isNull);
       expect(find.text('局域网地址不可用'), findsOneWidget);
       uri = Uri.parse('http://renamed.local:47779/');
-      await tester.tap(find.byTooltip('刷新'));
+      await tester.tap(findAppTooltip('刷新'));
       await tester.pumpAndSettle();
       expect(find.text(uri.toString()), findsOneWidget);
-      expect(tester.widget<IconButton>(copyButton).onPressed, isNotNull);
+      expect(tester.widget<AppIconButton>(copyButton).onPressed, isNotNull);
     });
 
     testWidgets('窄视口下长域名换行，操作按钮不溢出', (tester) async {
@@ -90,7 +109,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text(uri.toString()), findsOneWidget);
-      expect(find.byTooltip('复制我的分享地址'), findsOneWidget);
+      expect(findAppTooltip('复制我的分享地址'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -212,7 +231,7 @@ void main() {
       // 旧版只保证「按钮被禁用」，新版保证「按钮根本不在卡片上」。
       final Finder rowButtons = find.descendant(
         of: find.byType(ShareRow),
-        matching: find.byType(TextButton),
+        matching: find.byType(AppButton),
       );
       expect(rowButtons, findsNothing, reason: '卡片上不该有平铺的动作按钮');
       expect(
@@ -345,7 +364,10 @@ void main() {
             .widgetList<ShareStatusChip>(find.byType(ShareStatusChip))
             .toList();
         expect(chips, hasLength(2));
-        expect(chips.first.status, ShareStatus.active);
+        expect(chips.map((chip) => chip.status), [
+          ShareStatus.stopped,
+          ShareStatus.active,
+        ]);
       }
     });
   });

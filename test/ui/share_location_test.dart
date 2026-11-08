@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/ui/widgets/share_row.dart';
 
 import 'support/ui_fakes.dart';
@@ -74,7 +77,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text(path), findsOneWidget);
-    expect(find.byTooltip(path), findsOneWidget);
+    expect(findAppTooltip(path), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

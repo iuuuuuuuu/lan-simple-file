@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../core/platform/windows_startup.dart';
 import 'setting_row.dart';
 
@@ -54,6 +56,6 @@ class _WindowsStartupSettingState extends State<WindowsStartupSetting> {
   Widget build(BuildContext context) => SettingRow(
     label: '开机自动启动',
     subtitle: _error ?? '登录 Windows 后自动启动客户端',
-    trailing: Switch(value: _enabled, onChanged: _busy ? null : _change),
+    trailing: MiuixSwitch(value: _enabled, onChanged: _busy ? null : _change),
   );
 }

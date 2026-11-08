@@ -14,7 +14,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../widgets/app_controls.dart';
+
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/assembly.dart';
 import '../../app/theme/tokens.dart';
@@ -28,6 +32,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/drop_share_overlay.dart';
 import '../widgets/share_row.dart';
 import '../widgets/chat_pane.dart';
+import '../widgets/peer_shares_dialog.dart';
 import '../widgets/mobile_navigation.dart';
 import '../widgets/pick_share_files.dart';
 import '../widgets/share_upload_sheet.dart';
@@ -135,7 +140,8 @@ final class ServiceShellSessionSource implements ShellSessionSource {
             }),
         ]);
       case ShellSection.shares:
-        final List<ShareRecord> shares = await services.shares.listMine();
+        final shares = [...await services.shares.listMine()]
+          ..sort(compareShareRecords);
         return <SessionRowData>[
           for (final ShareRecord share in shares)
             SessionRowData(
@@ -314,7 +320,7 @@ class _QqShellState extends State<QqShell> {
   }
 
   Future<void> _editGroup([String? id]) async {
-    final name = await showDialog<String>(
+    final name = await showAppDialog<String>(
       context: context,
       builder: (_) => EditNameDialog(
         title: id == null ? '新建分组' : '重命名分组',
@@ -341,17 +347,17 @@ class _QqShellState extends State<QqShell> {
   }
 
   Future<void> _deleteGroup(String id) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         title: const Text('删除分组？'),
         content: Text('「${_groups.names[id]}」中的联系人和群聊会回到默认分组。'),
         actions: [
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          AppButton.primary(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('删除'),
           ),
@@ -626,9 +632,9 @@ class _QqShellState extends State<QqShell> {
             children: <Widget>[
               rail,
               if (threeColumn) ...<Widget>[
-                VerticalDivider(width: 1, color: tokens.line),
+                AppVerticalDivider(width: 1, color: tokens.line),
                 showChat ? list : Expanded(child: list),
-                VerticalDivider(width: 1, color: tokens.line),
+                AppVerticalDivider(width: 1, color: tokens.line),
               ],
               if (showChat)
                 Expanded(
@@ -687,9 +693,8 @@ class _QqShellState extends State<QqShell> {
           });
         }
       },
-      child: Scaffold(
+      child: AppScaffold(
         backgroundColor: tokens.bg,
-        extendBody: mobile,
         bottomNavigationBar: navigationVisible
             ? MobileNavigation(
                 selected: _section,
@@ -700,7 +705,7 @@ class _QqShellState extends State<QqShell> {
               )
             : null,
         body: Padding(
-          padding: EdgeInsets.only(bottom: navigationVisible ? 86 : 0),
+          padding: EdgeInsets.zero,
           child: Column(
             children: <Widget>[
               if (!mobile)
@@ -713,7 +718,7 @@ class _QqShellState extends State<QqShell> {
                         })
                       : null,
                 ),
-              if (!mobile) Divider(height: 1, color: tokens.line),
+              if (!mobile) AppDivider(height: 1, color: tokens.line),
               Expanded(child: dropped),
             ],
           ),
@@ -791,18 +796,15 @@ class _QqShellState extends State<QqShell> {
               actions: [
                 if (_section == ShellSection.nearby &&
                     (_groupsSource != null || widget.services != null))
-                  PopupMenuButton<String>(
+                  AppMenuButton<String>(
                     key: const ValueKey('session-add'),
                     tooltip: '添加',
                     icon: const Icon(Icons.add, size: 18),
                     itemBuilder: (_) => [
                       if (_groupsSource != null)
-                        const PopupMenuItem(
-                          value: 'grouping',
-                          child: Text('新建分组'),
-                        ),
+                        const AppMenuItem(value: 'grouping', label: '新建分组'),
                       if (widget.services != null)
-                        const PopupMenuItem(value: 'chat', child: Text('新建群聊')),
+                        const AppMenuItem(value: 'chat', label: '新建群聊'),
                     ],
                     onSelected: (value) =>
                         value == 'chat' ? _createGroup() : _editGroup(),
@@ -835,7 +837,7 @@ class _QqShellState extends State<QqShell> {
   Future<ShareId?> _pickShare() async {
     final shares = await widget.services!.shares.listMine();
     if (!mounted) return null;
-    return showDialog<ShareId>(
+    return showAppDialog<ShareId>(
       context: context,
       builder: (context) => SharePickerDialog(
         shares: shares
@@ -843,6 +845,45 @@ class _QqShellState extends State<QqShell> {
             .toList(),
       ),
     );
+  }
+
+  Future<void> _showPeerShares(PeerId peer) async {
+    final services = widget.services;
+    if (services == null) return;
+    final client = services.peerShareClient(peer);
+    final row =
+        _rowData.where((row) => row.id == peer.value).firstOrNull ??
+        (_selectedSession?.id == peer.value ? _selectedSession : null);
+    final name = peer == services.identity.peerId
+        ? services.profile.name
+        : row?.title ?? peer.value;
+    final avatar = peer == services.identity.peerId
+        ? services.avatars?.selfBytes
+        : row?.avatarBytes;
+    try {
+      await showAppDialog<void>(
+        context: context,
+        builder: (_) => PeerSharesDialog(
+          peer: peer,
+          name: name,
+          avatarBytes: avatar,
+          loadCatalog: client.catalog,
+          browse: client.browse,
+          homeLink: () => services.buildPeerWebHomeLink(peer),
+          shareLink: (share) => services.buildPeerWebLink(peer, share),
+          openLink: (uri) async {
+            if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+              throw const LanFileException(
+                LanFileErrorCode.io,
+                '无法打开浏览器，请复制链接后打开',
+              );
+            }
+          },
+        ),
+      );
+    } finally {
+      client.close();
+    }
   }
 
   Widget _buildContent() {
@@ -883,8 +924,11 @@ class _QqShellState extends State<QqShell> {
           title: row.title,
           self: self,
           avatarSeed: row.avatarSeed,
+          peer: row.isGroup ? null : peer,
+          onShowShares: widget.services == null ? null : _showPeerShares,
           avatarBytes: row.avatarBytes,
           selfAvatarBytes: widget.services?.avatars?.selfBytes,
+          senderAvatars: {for (final r in _rowData) r.id: r.avatarBytes},
           messaging: widget.messaging ?? widget.services?.messaging,
           subtitle: row.isGroup
               ? '群聊'
@@ -975,7 +1019,7 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: <Widget>[
           if (onBack != null)
-            IconButton(
+            AppIconButton(
               tooltip: '返回联系人',
               icon: Icon(Icons.arrow_back, size: 20, color: tokens.fgDim),
               onPressed: onBack,

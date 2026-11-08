@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 /// 名称输入和校验由弹窗管理，控制器随弹窗卸载释放。
 class EditNameDialog extends StatefulWidget {
   const EditNameDialog({
@@ -45,19 +47,19 @@ class _EditNameDialogState extends State<EditNameDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppDialog(
     title: Text(widget.title),
     content: SizedBox(
       width: 360,
       child: Form(
         key: _form,
-        child: TextFormField(
+        child: AppTextField(
           key: widget.fieldKey,
           controller: _controller,
           autofocus: true,
           maxLength: widget.maxLength,
-          decoration: InputDecoration(labelText: widget.label),
-          onFieldSubmitted: (_) {
+          label: widget.label,
+          onSubmitted: (_) {
             final composing = _controller.value.composing;
             if (!composing.isValid || composing.isCollapsed) _save();
           },
@@ -76,11 +78,11 @@ class _EditNameDialogState extends State<EditNameDialog> {
       ),
     ),
     actions: <Widget>[
-      TextButton(
+      AppButton(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('取消'),
       ),
-      FilledButton(onPressed: _save, child: Text(widget.confirmLabel)),
+      AppButton.primary(onPressed: _save, child: Text(widget.confirmLabel)),
     ],
   );
 }

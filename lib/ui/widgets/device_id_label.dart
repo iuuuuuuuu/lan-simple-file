@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+
+import 'app_controls.dart';
+
 import 'package:flutter/services.dart';
 
 import '../../app/theme/tokens.dart';
@@ -18,7 +21,7 @@ class DeviceIdLabel extends StatelessWidget {
       children: [
         Text('ID ', style: TextStyle(fontSize: 11, color: tokens.fgDim)),
         Expanded(
-          child: Tooltip(
+          child: AppTooltip(
             message: id,
             child: Text(
               id,
@@ -28,9 +31,8 @@ class DeviceIdLabel extends StatelessWidget {
             ),
           ),
         ),
-        IconButton(
+        AppIconButton(
           tooltip: '复制设备 ID',
-          visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints.tightFor(width: 28, height: 28),
           icon: Icon(Icons.copy_outlined, size: 13, color: tokens.fgDim),

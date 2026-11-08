@@ -20,6 +20,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
 import '../../app/theme/tokens.dart';
 
 /// 成功提示的停留时长。
@@ -165,93 +166,66 @@ class _AppToastEntryState extends State<AppToastEntry>
 
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens t = Theme.of(context).extension<LanFileTokens>() ??
-        LanFilePalette.of(
-          MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark
-              ? Brightness.dark
-              : Brightness.light,
-        );
-
+    final tokens = Theme.of(context).extension<LanFileTokens>()!;
+    // Compose the toast from Miuix controls to retain the status icon and
+    // per-message lifetime; MiuixSnackbar has no leading-content slot.
     return Positioned(
-      left: 0,
-      right: 0,
+      left: 16,
+      right: 16,
       bottom: kToastBottomInset,
       child: Center(
         child: FadeTransition(
-          opacity: CurvedAnimation(
-            parent: _controller,
-            curve: Curves.easeOut,
-          ),
+          opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
           child: Semantics(
             liveRegion: true,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Material(
-                  key: const ValueKey<String>('app-toast'),
-                  color: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                    decoration: BoxDecoration(
-                      color: t.surface,
-                      borderRadius:
-                          BorderRadius.circular(LanFileMetrics.radiusPanel),
-                      border: Border.all(
-                        color: t.cardLine,
-                        width: LanFileMetrics.hairline,
+              child: MiuixCard(
+                key: const ValueKey('app-toast'),
+                colors: MiuixCardColors(
+                  color: tokens.surface,
+                  contentColor: tokens.fg,
+                ),
+                insideMargin: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.isError
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline,
+                      size: 18,
+                      color: widget.isError ? tokens.fgDim : tokens.accent,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        widget.message,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          fontWeight: widget.isError
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: tokens.fg,
+                        ),
                       ),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: t.shadowColor,
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        // 成功/失败唯一的差异来源是图标形状与字重，
-                        // 颜色都取自同一套 token，不新增色相。
-                        Icon(
-                          widget.isError
-                              ? Icons.error_outline
-                              : Icons.check_circle_outline,
-                          size: 18,
-                          color: widget.isError ? t.fgDim : t.accent,
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            widget.message,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.4,
-                              fontWeight: widget.isError
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: t.fg,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          key: const ValueKey<String>('app-toast-close'),
-                          tooltip: '关闭提示',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 26,
-                            minHeight: 26,
-                          ),
-                          icon: Icon(Icons.close, size: 14, color: t.fgDim),
-                          onPressed: widget.onDismiss,
-                        ),
-                      ],
+                    const SizedBox(width: 4),
+                    AppIconButton(
+                      key: const ValueKey('app-toast-close'),
+                      tooltip: '关闭提示',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: widget.onDismiss,
+                      icon: Icon(Icons.close, size: 14, color: tokens.fgDim),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),

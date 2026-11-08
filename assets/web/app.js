@@ -126,6 +126,10 @@
         var payload = results[1];
         renderOwner(payload.owner || results[0]);
         shares = Array.isArray(payload.shares) ? payload.shares : [];
+        shares.sort(function (a, b) {
+          return (b.kind === "folder") - (a.kind === "folder") ||
+            String(a.name).localeCompare(String(b.name));
+        });
         renderShares();
       })
       .catch(function (error) {

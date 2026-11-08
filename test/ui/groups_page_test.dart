@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/pages/groups_page.dart';
+import 'package:flutter_miuix/miuix.dart';
 
 import 'support/ui_fakes.dart';
 
@@ -52,9 +53,7 @@ void main() {
         ..threads = <dynamic>[
           groupThread(groupId: 'g1', title: '大群', unread: 1234),
         ].cast()
-        ..groups = <String, dynamic>{
-          'g1': groupRecord(groupId: 'g1'),
-        }.cast();
+        ..groups = <String, dynamic>{'g1': groupRecord(groupId: 'g1')}.cast();
       await tester.pumpWidget(wrapWithTheme(GroupsPage(source: source)));
       await tester.pumpAndSettle();
       expect(find.text('99+'), findsOneWidget);
@@ -66,9 +65,7 @@ void main() {
           groupThread(groupId: 'g1', title: '真群'),
           directThread(id: 'd_abc', title: '这是单聊'),
         ].cast()
-        ..groups = <String, dynamic>{
-          'g1': groupRecord(groupId: 'g1'),
-        }.cast();
+        ..groups = <String, dynamic>{'g1': groupRecord(groupId: 'g1')}.cast();
       await tester.pumpWidget(wrapWithTheme(GroupsPage(source: source)));
       await tester.pumpAndSettle();
 
@@ -79,9 +76,7 @@ void main() {
 
     testWidgets('已解散的群仍列出但标注「已解散」', (WidgetTester tester) async {
       final FakeGroupsSource source = FakeGroupsSource()
-        ..threads = <dynamic>[
-          groupThread(groupId: 'g1', title: '解散了的群'),
-        ].cast()
+        ..threads = <dynamic>[groupThread(groupId: 'g1', title: '解散了的群')].cast()
         ..groups = <String, dynamic>{
           'g1': groupRecord(groupId: 'g1', name: '解散了的群', archived: true),
         }.cast();
@@ -96,12 +91,8 @@ void main() {
 
     testWidgets('没有预览时显示「还没有消息」', (WidgetTester tester) async {
       final FakeGroupsSource source = FakeGroupsSource()
-        ..threads = <dynamic>[
-          groupThread(groupId: 'g1', title: '新群'),
-        ].cast()
-        ..groups = <String, dynamic>{
-          'g1': groupRecord(groupId: 'g1'),
-        }.cast();
+        ..threads = <dynamic>[groupThread(groupId: 'g1', title: '新群')].cast()
+        ..groups = <String, dynamic>{'g1': groupRecord(groupId: 'g1')}.cast();
       await tester.pumpWidget(wrapWithTheme(GroupsPage(source: source)));
       await tester.pumpAndSettle();
       expect(find.text('还没有消息'), findsOneWidget);
@@ -120,17 +111,16 @@ void main() {
       await tester.pumpWidget(wrapWithTheme(GroupsPage(source: source)));
       await tester.pumpAndSettle();
 
-      final List<GroupRowView> rows =
-          tester.widgetList<GroupRowView>(find.byType(GroupRowView)).toList();
+      final List<GroupRowView> rows = tester
+          .widgetList<GroupRowView>(find.byType(GroupRowView))
+          .toList();
       expect(rows.first.row.thread.title, '多未读');
     });
   });
 
   group('服务未连接', () {
     testWidgets('services 为 null 时显示「未连接服务」', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        wrapWithTheme(const GroupsPage(services: null)),
-      );
+      await tester.pumpWidget(wrapWithTheme(const GroupsPage(services: null)));
       await tester.pumpAndSettle();
       expect(find.text('未连接服务'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -144,9 +134,7 @@ void main() {
           ..threads = <dynamic>[
             groupThread(groupId: 'g1', title: '群', unread: 3),
           ].cast()
-          ..groups = <String, dynamic>{
-            'g1': groupRecord(groupId: 'g1'),
-          }.cast();
+          ..groups = <String, dynamic>{'g1': groupRecord(groupId: 'g1')}.cast();
         await tester.pumpWidget(
           wrapWithTheme(GroupsPage(source: source), brightness: brightness),
         );
@@ -159,13 +147,13 @@ void main() {
               ? LanFilePalette.dark.accent
               : LanFilePalette.light.accent,
         );
-        final Container badge = tester.widget<Container>(
+        final MiuixBadge badge = tester.widget<MiuixBadge>(
           find.descendant(
             of: find.byType(UnreadBadge),
-            matching: find.byType(Container),
+            matching: find.byType(MiuixBadge),
           ),
         );
-        expect((badge.decoration! as BoxDecoration).color, tokens.accent);
+        expect(badge.containerColor, tokens.accent);
       }
     });
   });

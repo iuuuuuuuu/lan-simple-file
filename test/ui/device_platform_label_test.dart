@@ -5,6 +5,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/app/widgets/identicon.dart';
@@ -102,6 +105,7 @@ void main() {
           final key = GlobalKey();
           await tester.pumpWidget(
             MaterialApp(
+              builder: (context, child) => AppMiuixTheme(child: child!),
               theme: const bool.fromEnvironment('WRITE_PLATFORM_PREVIEWS')
                   ? withCjkFont(AppTheme.of(LanFilePalette.of(brightness)))
                   : AppTheme.of(LanFilePalette.of(brightness)),
@@ -138,13 +142,14 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) => AppMiuixTheme(child: child!),
           theme: AppTheme.of(LanFilePalette.light),
           home: MediaQuery(
             data: const MediaQueryData(
               size: Size(320, 844),
               textScaler: TextScaler.linear(1.5),
             ),
-            child: Scaffold(
+            child: AppScaffold(
               body: SessionList(
                 title: 'Nearby',
                 selectedId: null,
@@ -175,8 +180,9 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) => AppMiuixTheme(child: child!),
           theme: AppTheme.of(LanFilePalette.light),
-          home: Scaffold(
+          home: AppScaffold(
             body: SizedBox(
               width: 280,
               child: PeerCard(
@@ -210,9 +216,10 @@ void main() {
     final key = GlobalKey();
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => AppMiuixTheme(child: child!),
         home: RepaintBoundary(
           key: key,
-          child: Scaffold(
+          child: AppScaffold(
             body: Center(
               child: Wrap(
                 spacing: 20,

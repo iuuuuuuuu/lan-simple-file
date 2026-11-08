@@ -12,6 +12,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../widgets/app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../app/branding/app_logo.dart';
 import 'window_control_stub.dart'
@@ -150,8 +152,7 @@ class DragToMoveAreaImpl extends StatelessWidget {
   }
 }
 
-/// 窗口与主题按钮：悬浮使用浅底色，选中或按下使用主色背景，
-/// 关闭键悬浮时用主色图标强调操作。
+/// Window commands use Miuix hover feedback and primary-colored selection.
 class CaptionButton extends StatefulWidget {
   const CaptionButton({
     super.key,
@@ -173,56 +174,16 @@ class CaptionButton extends StatefulWidget {
 }
 
 class _CaptionButtonState extends State<CaptionButton> {
-  bool _hover = false;
-  bool _pressed = false;
-
   @override
-  Widget build(BuildContext context) {
-    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    final Color bg = _pressed || widget.selected
-        ? tokens.accentSoft
-        : _hover
-        ? tokens.hoverSoft
-        : Colors.transparent;
-    final Color fg = widget.selected || (_hover && widget.danger)
-        ? tokens.accent
-        : _hover
-        ? tokens.fg
-        : tokens.fgDim;
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() {
-          _hover = false;
-          _pressed = false;
-        }),
-        child: GestureDetector(
-          onTap: () => widget.onTap(),
-          onTapDown: (_) => setState(() => _pressed = true),
-          onTapUp: (_) => setState(() => _pressed = false),
-          onTapCancel: () => setState(() => _pressed = false),
-          child: Container(
-            key: ValueKey('caption-${widget.tooltip}'),
-            width: 44,
-            height: 28,
-            alignment: Alignment.center,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: widget.selected
-                    ? tokens.accent.withValues(alpha: .16)
-                    : Colors.transparent,
-              ),
-            ),
-            child: Icon(widget.icon, size: 14, color: fg),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppIconButton(
+    key: ValueKey('caption-${widget.tooltip}'),
+    tooltip: widget.tooltip,
+    selected: widget.selected,
+    onPressed: () => widget.onTap(),
+    padding: EdgeInsets.zero,
+    constraints: const BoxConstraints(minWidth: 44, minHeight: 28),
+    icon: Icon(widget.icon, size: 14),
+  );
 }
 
 /// 桌面窗口初始化（main 里在非 Android 时调用）。

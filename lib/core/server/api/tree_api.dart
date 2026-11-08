@@ -2,7 +2,7 @@
 
 /// `GET /s/:shareId/tree`：分享内目录的 JSON 分页。
 ///
-/// 分页游标是上一页最后一条的 itemKey；排序键与游标同构，
+/// 分页游标包含上一项的类型与 itemKey；文件夹排在文件前，
 /// 因此翻页不重不漏。
 library;
 
@@ -111,6 +111,7 @@ Handler shareTreeHandler(ShareSource source) {
     final ShareTarget target = await requireShare(source, shareId);
     final ItemKey key = decodeSharePath(
       request.uri.queryParameters['path'] ?? '',
+      alreadyDecoded: true,
     );
     final TreePage page = await listSharePage(
       target,
@@ -118,7 +119,10 @@ Handler shareTreeHandler(ShareSource source) {
       cursor: parseTreeCursor(request.uri.queryParameters['cursor']),
       limit: parseTreeLimit(request.uri.queryParameters['limit']),
     );
-    await jsonResponse(request.response, HttpStatus.ok, page.toJson());
+    await jsonResponse(request.response, HttpStatus.ok, {
+      ...page.toJson(),
+      'rootKey': target.root.itemKey.value,
+    });
   };
 }
 

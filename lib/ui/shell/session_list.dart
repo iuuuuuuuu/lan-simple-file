@@ -13,6 +13,8 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
+import '../widgets/app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../core/contacts/peer_groups.dart';
 import '../widgets/avatar_badge.dart';
@@ -134,25 +136,24 @@ class _SessionListState extends State<SessionList> {
   Future<void> _rowMenu(SessionRowData row, Offset position) async {
     if (widget.groups == null || widget.onMoveSession == null) return;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final choice = await showMenu<String>(
+    final choice = await showAppMenu<String>(
       context: context,
       position: RelativeRect.fromSize(
         Rect.fromLTWH(position.dx, position.dy, 0, 0),
         overlay.size,
       ),
       items: [
-        PopupMenuItem(
+        AppMenuItem(
           value: '',
-          child: Text(
-            '移到${row.isGroup
-                ? '群聊'
-                : row.isSelf
-                ? '本机'
-                : '陌生人'}',
-          ),
+          label:
+              '移到${row.isGroup
+                  ? '群聊'
+                  : row.isSelf
+                  ? '本机'
+                  : '陌生人'}',
         ),
         for (final entry in widget.groups!.names.entries)
-          PopupMenuItem(value: entry.key, child: Text('移到 ${entry.value}')),
+          AppMenuItem(value: entry.key, label: '移到 ${entry.value}'),
       ],
     );
     if (choice != null && mounted) {
@@ -195,10 +196,10 @@ class _SessionListState extends State<SessionList> {
               child: Row(
                 children: [
                   Expanded(
-                    child: InkWell(
+                    child: MiuixPressable(
                       key: ValueKey('session-group-${entry.key}'),
                       borderRadius: BorderRadius.circular(6),
-                      onTap: () => setState(() {
+                      onPressed: () => setState(() {
                         if (!_collapsed.add(entry.key)) {
                           _collapsed.remove(entry.key);
                         }
@@ -228,14 +229,14 @@ class _SessionListState extends State<SessionList> {
                     ),
                   ),
                   if (groups.names.containsKey(entry.key))
-                    PopupMenuButton<String>(
+                    AppMenuButton<String>(
                       tooltip: '分组操作',
                       iconSize: 16,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'rename', child: Text('重命名分组')),
-                        PopupMenuItem(value: 'delete', child: Text('删除分组')),
+                        AppMenuItem(value: 'rename', label: '重命名分组'),
+                        AppMenuItem(value: 'delete', label: '删除分组'),
                       ],
                       onSelected: (value) => value == 'rename'
                           ? widget.onEditGroup?.call(entry.key)
@@ -313,62 +314,30 @@ class _SessionListState extends State<SessionList> {
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             child: SizedBox(
-              height: 32,
-              child: TextField(
+              height: 32 + MediaQuery.textScalerOf(context).scale(20),
+              child: AppTextField(
                 key: const ValueKey<String>('session-search'),
                 controller: _search,
                 onChanged: (String value) => setState(() => _query = value),
                 style: TextStyle(fontSize: 12.5, color: tokens.fg),
-                decoration: InputDecoration(
-                  hintText: widget.hint,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                  filled: true,
-                  fillColor: tokens.bg,
-                  hintStyle: TextStyle(fontSize: 12, color: tokens.fgDim),
-                  prefixIcon: Icon(Icons.search, size: 15, color: tokens.fgDim),
-                  prefixIconConstraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '清空搜索',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 28,
-                            minHeight: 28,
-                          ),
-                          icon: Icon(
-                            Icons.close,
-                            size: 14,
-                            color: tokens.fgDim,
-                          ),
-                          onPressed: () {
-                            _search.clear();
-                            setState(() => _query = '');
-                          },
+                label: widget.hint,
+                placeholder: true,
+                leading: Icon(Icons.search, size: 15, color: tokens.fgDim),
+                trailing: _query.isEmpty
+                    ? null
+                    : AppIconButton(
+                        tooltip: '清空搜索',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
                         ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      LanFileMetrics.radiusRow,
-                    ),
-                    borderSide: BorderSide(color: tokens.cardLine),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      LanFileMetrics.radiusRow,
-                    ),
-                    borderSide: BorderSide(color: tokens.cardLine),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      LanFileMetrics.radiusRow,
-                    ),
-                    borderSide: BorderSide(color: tokens.accent, width: 1.2),
-                  ),
-                ),
+                        icon: Icon(Icons.close, size: 14, color: tokens.fgDim),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
               ),
             ),
           ),
@@ -429,7 +398,6 @@ class SessionListRow extends StatefulWidget {
 
 class _SessionListRowState extends State<SessionListRow> {
   bool _hovered = false;
-  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -438,7 +406,7 @@ class _SessionListRowState extends State<SessionListRow> {
     final RowState state = resolveRowState(
       hovered: _hovered,
       selected: widget.selected,
-      pressed: _pressed,
+      pressed: false,
     );
 
     return MouseRegion(
@@ -449,15 +417,12 @@ class _SessionListRowState extends State<SessionListRow> {
         child: DecoratedBox(
           decoration: rowDecoration(tokens, state),
           child: Material(
-            // Material 透明：底色交由上面的 DecoratedBox 负责，
-            // 这样 InkWell 的水波纹仍画在最内层，不会盖掉三态底色。
+            // Keep selection beneath Miuix hover and keyboard focus feedback.
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(kSessionRowRadius),
-            child: InkWell(
+            child: MiuixPressable(
               key: ValueKey<String>('session-row-${row.id}'),
-              onTap: widget.onTap,
-              onHighlightChanged: (bool highlighted) =>
-                  setState(() => _pressed = highlighted),
+              onPressed: widget.onTap,
               borderRadius: BorderRadius.circular(kSessionRowRadius),
               child: Container(
                 constraints: const BoxConstraints(
@@ -485,7 +450,7 @@ class _SessionListRowState extends State<SessionListRow> {
                           Row(
                             children: <Widget>[
                               Expanded(
-                                child: Tooltip(
+                                child: AppTooltip(
                                   message: row.title,
                                   child: Text(
                                     row.title,

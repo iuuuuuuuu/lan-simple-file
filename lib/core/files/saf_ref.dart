@@ -11,6 +11,7 @@ import '../contracts/errors.dart';
 import '../contracts/file_ref.dart';
 import '../contracts/types.dart';
 import 'saf_bridge.dart';
+import 'directory_order.dart';
 
 /// 一条 SAF 文档句柄。
 final class SafRef implements FileRef {
@@ -18,9 +19,9 @@ final class SafRef implements FileRef {
     required this.bridge,
     required String treeUri,
     required String documentId,
-  })  : _treeUri = _requireTreeUri(treeUri),
-        _documentId = _requireDocumentId(documentId),
-        _itemKey = _toItemKey(documentId);
+  }) : _treeUri = _requireTreeUri(treeUri),
+       _documentId = _requireDocumentId(documentId),
+       _itemKey = _toItemKey(documentId);
 
   /// 内部种子构造：list()/child() 已经拿到属性，避免再打一次通道。
   SafRef._seeded({
@@ -32,17 +33,17 @@ final class SafRef implements FileRef {
     int? size,
     DateTime? modifiedAt,
     String? mime,
-  })  : // 私有字段无法写成命名 initializing formal，只能在此赋值。
-        // ignore: prefer_initializing_formals
-        _treeUri = treeUri,
-        _documentId = documentId,
-        _itemKey = ItemKey(documentId),
-        _cachedName = name,
-        _cachedIsDirectory = isDirectory,
-        _cachedSize = size,
-        _cachedModifiedAt = modifiedAt,
-        _cachedMime = mime,
-        _statLoaded = true;
+  }) : // 私有字段无法写成命名 initializing formal，只能在此赋值。
+       // ignore: prefer_initializing_formals
+       _treeUri = treeUri,
+       _documentId = documentId,
+       _itemKey = ItemKey(documentId),
+       _cachedName = name,
+       _cachedIsDirectory = isDirectory,
+       _cachedSize = size,
+       _cachedModifiedAt = modifiedAt,
+       _cachedMime = mime,
+       _statLoaded = true;
 
   /// MethodChannel 封装。
   final SafBridge bridge;
@@ -104,15 +105,13 @@ final class SafRef implements FileRef {
 
   @override
   FileEntry toEntry() => FileEntry(
-        itemKey: _itemKey,
-        name: displayName,
-        kind: (_cachedIsDirectory ?? false)
-            ? EntryKind.directory
-            : EntryKind.file,
-        size: _cachedSize,
-        modifiedAt: _cachedModifiedAt,
-        mime: _cachedMime,
-      );
+    itemKey: _itemKey,
+    name: displayName,
+    kind: (_cachedIsDirectory ?? false) ? EntryKind.directory : EntryKind.file,
+    size: _cachedSize,
+    modifiedAt: _cachedModifiedAt,
+    mime: _cachedMime,
+  );
 
   @override
   Future<FileEntryPage> list({
@@ -139,8 +138,9 @@ final class SafRef implements FileRef {
       limit: limit + 1,
     );
     final bool hasMore = rows.length > limit;
-    final List<Map<String, Object?>> page =
-        hasMore ? rows.sublist(0, limit) : rows;
+    final List<Map<String, Object?>> page = hasMore
+        ? rows.sublist(0, limit)
+        : rows;
     final List<FileEntry> entries = <FileEntry>[];
     for (final Map<String, Object?> row in page) {
       entries.add(
@@ -158,7 +158,12 @@ final class SafRef implements FileRef {
     }
     return FileEntryPage(
       entries: entries,
-      nextCursor: hasMore ? page.last['documentId'] as String : null,
+      nextCursor: hasMore
+          ? directoryCursor(
+              page.last['documentId'] as String,
+              page.last['isDirectory'] as bool,
+            )
+          : null,
     );
   }
 
@@ -171,8 +176,7 @@ final class SafRef implements FileRef {
         '不是 $_documentId 的直接子项: $childId',
       );
     }
-    final Map<String, Object?> stat =
-        await bridge.statItem(_treeUri, childId);
+    final Map<String, Object?> stat = await bridge.statItem(_treeUri, childId);
     return SafRef._seeded(
       bridge: bridge,
       treeUri: _treeUri,
@@ -223,8 +227,7 @@ final class SafRef implements FileRef {
   Future<String> fingerprint() async {
     await _ensureStat();
     final int size = _cachedSize ?? 0;
-    final int mtimeMs =
-        _cachedModifiedAt?.millisecondsSinceEpoch ?? 0;
+    final int mtimeMs = _cachedModifiedAt?.millisecondsSinceEpoch ?? 0;
     return '$size-$mtimeMs';
   }
 
@@ -243,8 +246,10 @@ final class SafRef implements FileRef {
 
   Future<void> _loadStat() async {
     try {
-      final Map<String, Object?> stat =
-          await bridge.statItem(_treeUri, _documentId);
+      final Map<String, Object?> stat = await bridge.statItem(
+        _treeUri,
+        _documentId,
+      );
       _cachedName = stat['name']! as String;
       _cachedIsDirectory = stat['isDirectory']! as bool;
       _cachedSize = stat['size'] as int?;
@@ -277,10 +282,7 @@ final class SafRef implements FileRef {
 
   static String _requireTreeUri(String treeUri) {
     if (treeUri.isEmpty) {
-      throw LanFileException(
-        LanFileErrorCode.invalidArgument,
-        'treeUri 不能为空',
-      );
+      throw LanFileException(LanFileErrorCode.invalidArgument, 'treeUri 不能为空');
     }
     if (!treeUri.startsWith('content://') || !treeUri.contains('/tree/')) {
       throw LanFileException(

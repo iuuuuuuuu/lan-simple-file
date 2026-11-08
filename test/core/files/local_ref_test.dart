@@ -18,7 +18,10 @@ import 'package:lan_simple_file/core/files/relative_path_codec.dart';
 import 'package:path/path.dart' as p;
 
 /// 把 [stream] 的分块拼成一条整字节流，顺带记录块数以便断言分块行为。
-Future<List<int>> drain(Stream<List<int>> stream, {List<int>? chunkSizes}) async {
+Future<List<int>> drain(
+  Stream<List<int>> stream, {
+  List<int>? chunkSizes,
+}) async {
   final List<int> out = <int>[];
   await for (final List<int> chunk in stream) {
     chunkSizes?.add(chunk.length);
@@ -121,21 +124,31 @@ void main() {
       for (var i = 0; i < 7; i++) {
         final String name = 'f$i.txt';
         File(p.join(base.path, name)).writeAsStringSync('$i');
-        expected.add(p.relative(p.join(base.path, name), from: rootPath).replaceAll(r'\', '/'));
+        expected.add(
+          p
+              .relative(p.join(base.path, name), from: rootPath)
+              .replaceAll(r'\', '/'),
+        );
       }
-      final Directory l2 = Directory(p.join(base.path, 'layer2'))
-        ..createSync();
+      final Directory l2 = Directory(p.join(base.path, 'layer2'))..createSync();
       for (var i = 0; i < 5; i++) {
         final String name = 'g$i.txt';
         File(p.join(l2.path, name)).writeAsStringSync('$i');
-        expected.add(p.relative(p.join(l2.path, name), from: rootPath).replaceAll(r'\', '/'));
+        expected.add(
+          p
+              .relative(p.join(l2.path, name), from: rootPath)
+              .replaceAll(r'\', '/'),
+        );
       }
-      final Directory l3 = Directory(p.join(l2.path, 'layer3'))
-        ..createSync();
+      final Directory l3 = Directory(p.join(l2.path, 'layer3'))..createSync();
       for (var i = 0; i < 3; i++) {
         final String name = 'h$i.txt';
         File(p.join(l3.path, name)).writeAsStringSync('$i');
-        expected.add(p.relative(p.join(l3.path, name), from: rootPath).replaceAll(r'\', '/'));
+        expected.add(
+          p
+              .relative(p.join(l3.path, name), from: rootPath)
+              .replaceAll(r'\', '/'),
+        );
       }
       return expected;
     }
@@ -158,9 +171,15 @@ void main() {
       expect(pages, 3, reason: '8 项 / 每页 3 项 = 3 页');
       expect(level1.length, 8);
       expect(level1.map((FileEntry e) => e.name).toList(), <String>[
-        'f0.txt', 'f1.txt', 'f2.txt', 'f3.txt', 'f4.txt', 'f5.txt', 'f6.txt',
         'layer2',
-      ], reason: '必须按 name 升序');
+        'f0.txt',
+        'f1.txt',
+        'f2.txt',
+        'f3.txt',
+        'f4.txt',
+        'f5.txt',
+        'f6.txt',
+      ], reason: '文件夹优先，同类按键升序');
 
       // 第二层与第三层：递归收集所有文件，和预期的集合严格相等。
       final Set<String> seen = <String>{};
@@ -172,7 +191,11 @@ void main() {
             if (e.isDirectory) {
               await walk(await ref.child(ItemKey.parse(e.itemKey.value)));
             } else {
-              expect(seen.add(e.itemKey.value), isTrue, reason: '重复项：${e.itemKey.value}');
+              expect(
+                seen.add(e.itemKey.value),
+                isTrue,
+                reason: '重复项：${e.itemKey.value}',
+              );
             }
           }
           c = page.nextCursor;
@@ -184,6 +207,21 @@ void main() {
       expect(seen.length, expectedFiles.length);
     });
 
+    test('directory cursor survives deletion and crosses into files', () async {
+      final removed = Directory(p.join(rootPath, 'y-folder'))..createSync();
+      Directory(p.join(rootPath, 'z-folder')).createSync();
+      File(p.join(rootPath, 'a.txt')).writeAsStringSync('a');
+      final ref = LocalRef.root(rootPath);
+      final first = await ref.list(limit: 1);
+      expect(first.entries.single.name, 'y-folder');
+      removed.deleteSync();
+      final second = await ref.list(cursor: first.nextCursor, limit: 1);
+      expect(second.entries.single.name, 'z-folder');
+      final third = await ref.list(cursor: second.nextCursor, limit: 1);
+      expect(third.entries.single.name, 'a.txt');
+      expect(third.nextCursor, isNull);
+    });
+
     test('cursor 恰好是上一页最后一条的 itemKey', () async {
       for (var i = 0; i < 5; i++) {
         File(p.join(rootPath, 'n$i')).writeAsStringSync('x');
@@ -192,8 +230,14 @@ void main() {
       final FileEntryPage first = await rootRef.list(limit: 2);
       expect(first.entries.length, 2);
       expect(first.nextCursor, first.entries.last.itemKey.value);
-      final FileEntryPage second = await rootRef.list(cursor: first.nextCursor, limit: 2);
-      expect(second.entries.map((FileEntry e) => e.name).toList(), <String>['n2', 'n3']);
+      final FileEntryPage second = await rootRef.list(
+        cursor: first.nextCursor,
+        limit: 2,
+      );
+      expect(second.entries.map((FileEntry e) => e.name).toList(), <String>[
+        'n2',
+        'n3',
+      ]);
     });
 
     test('末页 nextCursor 为 null，hasMore 为 false', () async {
@@ -215,14 +259,19 @@ void main() {
 
     test('游标落在末尾之后返回空页而不是报错', () async {
       File(p.join(rootPath, 'z.txt')).writeAsStringSync('x');
-      final FileEntryPage page = await LocalRef.root(rootPath).list(cursor: 'z.txt', limit: 5);
+      final FileEntryPage page = await LocalRef.root(rootPath)
+          .list(cursor: 'z.txt', limit: 5);
       expect(page.entries, isEmpty);
       expect(page.nextCursor, isNull);
     });
 
     test('对文件调用 list 抛 invalidArgument', () async {
-      final File f = File(p.join(rootPath, 'plain.txt'))..writeAsStringSync('x');
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'plain.txt');
+      final File f = File(p.join(rootPath, 'plain.txt'))
+        ..writeAsStringSync('x');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'plain.txt',
+      );
       expect(await ref.exists(), isTrue);
       await expectLater(
         ref.list(limit: 10),
@@ -254,11 +303,17 @@ void main() {
       File(p.join(outside.path, 'secret.txt')).writeAsStringSync('x');
       File(p.join(rootPath, 'inside.txt')).writeAsStringSync('x');
       final ProcessResult pr = Process.runSync('cmd', <String>[
-        '/c', 'mklink', '/J', p.join(rootPath, 'junction'), outside.path,
+        '/c',
+        'mklink',
+        '/J',
+        p.join(rootPath, 'junction'),
+        outside.path,
       ]);
       expect(pr.exitCode, 0, reason: 'mklink /J 失败：${pr.stdout}${pr.stderr}');
       final FileEntryPage page = await LocalRef.root(rootPath).list(limit: 50);
-      expect(page.entries.map((FileEntry e) => e.name).toList(), <String>['inside.txt']);
+      expect(page.entries.map((FileEntry e) => e.name).toList(), <String>[
+        'inside.txt',
+      ]);
     });
   });
 
@@ -282,10 +337,7 @@ void main() {
         final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: n);
         expect(ref.displayName, n);
         expect(await ref.exists(), isTrue);
-        expect(
-          utf8.decode(await drain(ref.openRead())),
-          'content-of-$n',
-        );
+        expect(utf8.decode(await drain(ref.openRead())), 'content-of-$n');
         expect(byName[n]!.size, utf8.encode('content-of-$n').length);
       }
       // 超长名往返也要一致。
@@ -315,15 +367,18 @@ void main() {
       // 摆到最深那层目录上再列举，验证「超长路径 + 目录列举」也走通。
       final List<String> segments = key.split('/');
       final String parentKey = segments.take(segments.length - 1).join('/');
-      final LocalRef parentRef =
-          LocalRef(rootPath: rootPath, relativePath: parentKey);
+      final LocalRef parentRef = LocalRef(
+        rootPath: rootPath,
+        relativePath: parentKey,
+      );
       expect(parentRef.isDirectory, isTrue);
       final FileEntryPage page = await parentRef.list(limit: 5);
       expect(page.entries.single.name, 'deep.txt');
       expect(page.entries.single.itemKey.value, key);
       // 从该目录句柄拿子项句柄，走的是 root 内全量键坐标系。
-      final FileRef childRef =
-          await parentRef.child(ItemKey.parse(page.entries.single.itemKey.value));
+      final FileRef childRef = await parentRef.child(
+        ItemKey.parse(page.entries.single.itemKey.value),
+      );
       expect(childRef.itemKey.value, key);
       expect(await childRef.exists(), isTrue);
     });
@@ -338,7 +393,10 @@ void main() {
       final List<int> all = <int>[];
       var written = 0;
       while (written < 10 * 1024 * 1024) {
-        final List<int> block = List<int>.generate(64 * 1024, (_) => rnd.nextInt(256));
+        final List<int> block = List<int>.generate(
+          64 * 1024,
+          (_) => rnd.nextInt(256),
+        );
         sink.add(block);
         all.addAll(block);
         written += block.length;
@@ -350,24 +408,38 @@ void main() {
       final String expected = sha256.convert(all).toString();
       expect(expected, sha256.convert(await src.readAsBytes()).toString());
 
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'big.bin');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'big.bin',
+      );
       final List<int> chunkSizes = <int>[];
-      final List<int> collected = await drain(ref.openRead(), chunkSizes: chunkSizes);
+      final List<int> collected = await drain(
+        ref.openRead(),
+        chunkSizes: chunkSizes,
+      );
       expect(collected.length, 10 * 1024 * 1024);
       expect(sha256.convert(collected).toString(), expected);
       // 块大小 256KB 起步：10MB 应被切成 40 块左右，而不是一次性读完。
       expect(chunkSizes.length, greaterThanOrEqualTo(40));
-      expect(chunkSizes.every((int n) => n <= 256 * 1024), isTrue,
-          reason: '单块不得超过 256KB：$chunkSizes.take(5)');
+      expect(
+        chunkSizes.every((int n) => n <= 256 * 1024),
+        isTrue,
+        reason: '单块不得超过 256KB：$chunkSizes.take(5)',
+      );
     });
 
     test('start / endExclusive 切片与原文一致', () async {
       final List<int> payload = List<int>.generate(5000, (int i) => i % 256);
       File(p.join(rootPath, 'slice.bin')).writeAsBytesSync(payload);
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'slice.bin');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'slice.bin',
+      );
 
-      expect(await drain(ref.openRead(start: 1000, endExclusive: 2000)),
-          payload.sublist(1000, 2000));
+      expect(
+        await drain(ref.openRead(start: 1000, endExclusive: 2000)),
+        payload.sublist(1000, 2000),
+      );
       expect(await drain(ref.openRead(start: 4999)), <int>[payload[4999]]);
       expect(await drain(ref.openRead(start: 5000)), isEmpty);
       expect(await drain(ref.openRead(endExclusive: 0)), isEmpty);
@@ -375,8 +447,12 @@ void main() {
     });
 
     test('越界读取抛 invalidArgument 而不是静默截断', () async {
-      File(p.join(rootPath, 'small.bin')).writeAsBytesSync(List<int>.filled(10, 7));
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'small.bin');
+      File(p.join(rootPath, 'small.bin'))
+          .writeAsBytesSync(List<int>.filled(10, 7));
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'small.bin',
+      );
 
       Future<void> expectInvalid(Stream<List<int>> s, String reason) async {
         await expectLater(
@@ -395,15 +471,18 @@ void main() {
       await expectInvalid(ref.openRead(start: 11), 'start 超出长度');
       await expectInvalid(ref.openRead(endExclusive: 11), 'end 超出长度');
       await expectInvalid(ref.openRead(start: -1), 'start 为负');
-      await expectInvalid(ref.openRead(start: 5, endExclusive: 4), 'end 小于 start');
+      await expectInvalid(
+        ref.openRead(start: 5, endExclusive: 4),
+        'end 小于 start',
+      );
     });
 
     test('目录读取抛 invalidArgument', () async {
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: rootItemKey);
-      await expectLater(
-        ref.openRead(),
-        emitsError(isA<LanFileException>()),
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: rootItemKey,
       );
+      await expectLater(ref.openRead(), emitsError(isA<LanFileException>()));
     });
 
     test('超过 4GiB 的偏移量不被截断（稀疏文件，不占真实磁盘）', () async {
@@ -421,11 +500,7 @@ void main() {
           'setflag',
           f.path,
         ]);
-        expect(
-          sparse.exitCode,
-          0,
-          reason: '${sparse.stdout}${sparse.stderr}',
-        );
+        expect(sparse.exitCode, 0, reason: '${sparse.stdout}${sparse.stderr}');
         final attributes = await Process.run('powershell.exe', [
           '-NoProfile',
           '-NonInteractive',
@@ -443,10 +518,16 @@ void main() {
         raf.closeSync();
       }
 
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'sparse.bin');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'sparse.bin',
+      );
       expect(await ref.length(), 5 * 1024 * 1024 * 1024 + 16);
       final List<int> tail = await drain(
-        ref.openRead(start: 5 * 1024 * 1024 * 1024, endExclusive: 5 * 1024 * 1024 * 1024 + 8),
+        ref.openRead(
+          start: 5 * 1024 * 1024 * 1024,
+          endExclusive: 5 * 1024 * 1024 * 1024 + 8,
+        ),
       );
       expect(tail, <int>[1, 2, 3, 4, 5, 6, 7, 8]);
       expect((await ref.fingerprint()).startsWith('5368709136-'), isTrue);
@@ -455,21 +536,28 @@ void main() {
 
   group('exists / fingerprint / 元数据', () {
     test('不存在的文件 exists() 返回 false 且不抛', () async {
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'nope.txt');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'nope.txt',
+      );
       expect(await ref.exists(), isFalse);
       expect(await ref.lastModified(), isNull);
     });
 
     test('文件被删除后 exists() 转为 false', () async {
       final File f = File(p.join(rootPath, 'temp.txt'))..writeAsStringSync('x');
-      final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'temp.txt');
+      final LocalRef ref = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'temp.txt',
+      );
       expect(await ref.exists(), isTrue);
       f.deleteSync();
       expect(await ref.exists(), isFalse);
     });
 
     test('fingerprint 形如 size-mtimeMs 且随内容变化', () async {
-      final File f = File(p.join(rootPath, 'fp.bin'))..writeAsStringSync('12345');
+      final File f = File(p.join(rootPath, 'fp.bin'))
+        ..writeAsStringSync('12345');
       final LocalRef ref = LocalRef(rootPath: rootPath, relativePath: 'fp.bin');
       final String fp1 = await ref.fingerprint();
       expect(
@@ -502,13 +590,17 @@ void main() {
     test('toEntry 的 kind / size 正确', () async {
       File(p.join(rootPath, 'e.txt')).writeAsStringSync('abcd');
       Directory(p.join(rootPath, 'edir')).createSync();
-      final FileEntry fileEntry =
-          LocalRef(rootPath: rootPath, relativePath: 'e.txt').toEntry();
+      final FileEntry fileEntry = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'e.txt',
+      ).toEntry();
       expect(fileEntry.kind, EntryKind.file);
       expect(fileEntry.size, 4);
       expect(fileEntry.name, 'e.txt');
-      final FileEntry dirEntry =
-          LocalRef(rootPath: rootPath, relativePath: 'edir').toEntry();
+      final FileEntry dirEntry = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'edir',
+      ).toEntry();
       expect(dirEntry.kind, EntryKind.directory);
       expect(dirEntry.isDirectory, isTrue);
     });
@@ -527,7 +619,10 @@ void main() {
     test('child 只按根锚定键解析：相对名不会被拼到父节点之后', () async {
       Directory(p.join(rootPath, 'sub2')).createSync();
       File(p.join(rootPath, 'sub2', 'y.txt')).writeAsStringSync('y');
-      final LocalRef parent = LocalRef(rootPath: rootPath, relativePath: 'sub2');
+      final LocalRef parent = LocalRef(
+        rootPath: rootPath,
+        relativePath: 'sub2',
+      );
       // 契约规定 childKey 的坐标系只有「根锚定完整键」一种。
       // 因此传 'y.txt' 等于在根下找 y.txt，而不是 sub2/y.txt。
       final FileRef kid = await parent.child(ItemKey.parse('y.txt'));
@@ -540,7 +635,10 @@ void main() {
     });
 
     test('child 越界抛 invalidArgument', () async {
-      final LocalRef parent = LocalRef(rootPath: rootPath, relativePath: rootItemKey);
+      final LocalRef parent = LocalRef(
+        rootPath: rootPath,
+        relativePath: rootItemKey,
+      );
       await expectLater(
         parent.child(ItemKey.parse('../escape.txt')),
         throwsA(isA<LanFileException>()),
@@ -573,7 +671,10 @@ void main() {
 
     test('resolve 正常项与缺失项的错误码', () async {
       File(p.join(rootPath, 'r.txt')).writeAsStringSync('x');
-      final FileRef ref = await factory.resolve(rootPath, ItemKey.parse('r.txt'));
+      final FileRef ref = await factory.resolve(
+        rootPath,
+        ItemKey.parse('r.txt'),
+      );
       expect(await ref.exists(), isTrue);
       await expectLater(
         factory.resolve(rootPath, ItemKey.parse('absent.txt')),
@@ -600,7 +701,8 @@ void main() {
     test('canRead 正常/缺失/非目录', () async {
       expect(await factory.canRead(rootPath), isTrue);
       expect(await factory.canRead(p.join(sandbox.path, 'missing')), isFalse);
-      final File f = File(p.join(sandbox.path, 'file.txt'))..writeAsStringSync('x');
+      final File f = File(p.join(sandbox.path, 'file.txt'))
+        ..writeAsStringSync('x');
       expect(await factory.canRead(f.path), isFalse);
     });
   });

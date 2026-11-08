@@ -15,8 +15,13 @@ import 'dart:io';
 
 import 'app/app.dart';
 import 'app/assembly.dart';
+import 'app/network_diagnostics.dart';
+import 'core/diagnostics/network_log.dart';
+import 'ui/widgets/network_diagnostics_setting.dart';
+import 'app/theme/app_theme.dart';
 import 'core/platform/default_nickname.dart';
 import 'ui/shell/custom_title_bar.dart';
+import 'ui/widgets/app_controls.dart';
 import 'ui/shell/window_control_stub.dart'
     if (dart.library.io) 'ui/shell/window_control_desktop.dart'
     as wc;
@@ -31,6 +36,7 @@ Future<void> main(List<String> arguments) async {
     // Keep the native window hidden until saved startup and tray setup finish.
     await initDesktopWindow();
     final String dataDirPath = (await getApplicationSupportDirectory()).path;
+    await NetworkDiagnostics.initialize(Directory(dataDirPath));
     // enableDiscovery 打开后本机会真实广播；离线环境（无网卡）会降级为只发不收，
     // 由 AnnounceService.degradedReason 暴露原因，不阻断启动。
     final AppServices services = await AppAssembler.assemble(
@@ -39,12 +45,15 @@ Future<void> main(List<String> arguments) async {
       name: await loadDefaultNickname(),
       enableLocalDomains: true,
     );
+    NetworkDiagnostics.active?.attach(services);
     runApp(
       ProviderScope(
         child: LanFileApp(services: services, startupArguments: arguments),
       ),
     );
   } catch (error, stack) {
+    NetworkLog.record('app.startup_error', NetworkLog.errorFields(error));
+    await NetworkLog.active?.flush();
     runApp(_StartupFailureApp(error: error, stack: stack));
     if (wc.windowControlAvailable) await wc.showDesktopWindow();
   }
@@ -61,7 +70,10 @@ class _StartupFailureApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '启动失败',
-      home: Scaffold(
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      builder: (context, child) => AppMiuixTheme(child: child!),
+      home: AppScaffold(
         body: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -84,6 +96,8 @@ class _StartupFailureApp extends StatelessWidget {
                 stack.toString().split('\n').take(6).join('\n'),
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
               ),
+              if (NetworkDiagnostics.active != null)
+                const NetworkDiagnosticsSetting(),
             ],
           ),
         ),

@@ -5,7 +5,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lan_simple_file/app/theme/tokens.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/messaging/messaging_service_impl.dart';
 import 'package:lan_simple_file/ui/shell/custom_title_bar.dart';
@@ -229,25 +231,39 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final tokens = brightness == Brightness.dark
-          ? LanFilePalette.dark
-          : LanFilePalette.light;
+      final colors = MiuixThemeData.of(brightness).colors;
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(
         location: tester.getCenter(find.byKey(const ValueKey('caption-关闭'))),
       );
       await tester.pumpAndSettle();
-      final close = tester.widget<Container>(
-        find.byKey(const ValueKey('caption-关闭')),
+      final close = find.byKey(const ValueKey('caption-关闭'));
+      final hover = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.descendant(
+            of: close,
+            matching: find.byType(MiuixIconButton),
+          ),
+          matching: find.byType(DecoratedBox),
+        ),
       );
-      expect((close.decoration as BoxDecoration).color, tokens.hoverSoft);
-      final theme = tester.widget<Container>(
-        find.byKey(const ValueKey('caption-主题')),
-      );
-      expect((theme.decoration as BoxDecoration).color, tokens.accentSoft);
+      final hoverColor = (hover.decoration as BoxDecoration).color!;
+      expect(hoverColor.a, closeTo(.06, .001));
       expect(
-        tester.widget<Icon>(find.byIcon(Icons.dark_mode_outlined)).color,
-        tokens.accent,
+        hoverColor.withValues(alpha: 1),
+        colors.onBackground.withValues(alpha: 1),
+      );
+      final theme = tester.widget<MiuixIconButton>(
+        find.descendant(
+          of: find.byKey(const ValueKey('caption-主题')),
+          matching: find.byType(MiuixIconButton),
+        ),
+      );
+      expect(theme.backgroundColor, colors.secondaryContainer);
+      expect(
+        IconTheme.of(tester.element(find.byIcon(Icons.dark_mode_outlined)))
+            .color,
+        colors.primary,
       );
       await mouse.removePointer();
     }
@@ -258,7 +274,7 @@ void main() {
     addTearDown(messaging.updates.close);
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: ChatPane(
             threadId: 'g_test',
             title: '群',
@@ -276,7 +292,7 @@ void main() {
     expect(find.textContaining('发送失败'), findsOneWidget);
     expect(
       tester
-          .widget<TextField>(find.byKey(const ValueKey('chat-input')))
+          .widget<AppTextField>(find.byKey(const ValueKey('chat-input')))
           .controller!
           .text,
       '草稿',
@@ -292,7 +308,7 @@ void main() {
     addTearDown(messaging.updates.close);
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: ChatPane(
             threadId: 'g_test',
             title: '群',
@@ -311,12 +327,15 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await tester.pumpAndSettle();
     expect(messaging.sent, isEmpty);
-    expect(tester.widget<TextField>(input).controller!.text, contains('第一行'));
+    expect(
+      tester.widget<AppTextField>(input).controller!.text,
+      contains('第一行'),
+    );
     await tester.enterText(input, '第一行\n第二行');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(messaging.sent.single.text, '第一行\n第二行');
-    expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+    expect(tester.widget<AppTextField>(input).controller!.text, isEmpty);
   });
 
   testWidgets('手机从分组列表进入聊天并返回，不需要会话抽屉', (tester) async {
@@ -333,7 +352,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('shell-list')), findsNothing);
     expect(find.byType(ChatPane), findsOneWidget);
-    await tester.tap(find.byTooltip('返回联系人'));
+    await tester.tap(findAppTooltip('返回联系人'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('shell-list')), findsOneWidget);
     expect(find.byType(ChatPane), findsNothing);

@@ -15,6 +15,7 @@ import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/groups_page.dart';
 import 'package:lan_simple_file/ui/pages/nearby_page.dart';
 import 'package:lan_simple_file/ui/pages/shares_page.dart';
+import 'package:lan_simple_file/ui/widgets/app_controls.dart';
 
 /// 合法 peerId：p_ + 恰好 13 位小写字母数字。
 PeerId peerOf(String suffix) {
@@ -297,12 +298,13 @@ final class FakeGroupsSource implements GroupsSource {
 Widget wrapWithTheme(Widget child, {Brightness brightness = Brightness.light}) {
   return MaterialApp(
     theme: AppTheme.of(LanFilePalette.of(brightness)),
-    home: Scaffold(body: child),
+    builder: (_, child) => AppMiuixTheme(child: child!),
+    home: AppScaffold(body: child),
   );
 }
 
 /// 从 BuildContext 取 token，供测试断言真实取到的色值。
 LanFileTokens tokensAt(WidgetTester tester) {
-  final BuildContext context = tester.element(find.byType(Scaffold).first);
+  final BuildContext context = tester.element(find.byType(AppScaffold).first);
   return Theme.of(context).extension<LanFileTokens>()!;
 }

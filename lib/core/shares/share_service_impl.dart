@@ -23,6 +23,7 @@ import '../contracts/identity.dart';
 import '../contracts/services.dart';
 import '../contracts/store.dart';
 import '../contracts/types.dart';
+import '../files/directory_order.dart';
 import '../files/local_ref.dart';
 import '../store/database.dart' show AppDatabase;
 import '../store/store_impl.dart' show LanFileStoreImpl;
@@ -60,8 +61,8 @@ final class FixedOnlineProbe implements PeerOnlineProbe {
   FixedOnlineProbe({
     required Set<PeerId> online,
     Map<PeerId, DateTime>? lastSeen,
-  })  : _online = Set<PeerId>.of(online),
-        _lastSeen = <PeerId, DateTime>{...?lastSeen};
+  }) : _online = Set<PeerId>.of(online),
+       _lastSeen = <PeerId, DateTime>{...?lastSeen};
 
   final Set<PeerId> _online;
   final Map<PeerId, DateTime> _lastSeen;
@@ -174,12 +175,12 @@ final class ShareServiceImpl
     DateTime Function()? clock,
     String Function()? idGenerator,
     String Function()? tokenIdGenerator,
-  })  : _probe = probe ?? const AlwaysOnlineProbe(),
-        _guard = guard,
-        _clock = clock ?? DateTime.now,
-        _idGenerator = idGenerator ?? _defaultShareId,
-        _tokenIdGenerator = tokenIdGenerator ?? _defaultTokenId,
-        _scanner = scanner ?? IndexScanner(store: store, guard: guard);
+  }) : _probe = probe ?? const AlwaysOnlineProbe(),
+       _guard = guard,
+       _clock = clock ?? DateTime.now,
+       _idGenerator = idGenerator ?? _defaultShareId,
+       _tokenIdGenerator = tokenIdGenerator ?? _defaultTokenId,
+       _scanner = scanner ?? IndexScanner(store: store, guard: guard);
 
   /// 持久化门面。
   final LanFileStore store;
@@ -257,8 +258,8 @@ final class ShareServiceImpl
       mode: request.mode,
       enabled: true,
       missing: false,
-      isEphemeral: request.mode == ShareMode.offer ||
-          request.mode == ShareMode.session,
+      isEphemeral:
+          request.mode == ShareMode.offer || request.mode == ShareMode.session,
       expiresAt: request.expiresAt?.toUtc(),
       passwordHash: request.password,
       groupId: request.groupId,
@@ -342,10 +343,12 @@ final class ShareServiceImpl
   @override
   Future<void> rename(ShareId id, String name) async {
     final String trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.runes.length > 128 ||
+    if (trimmed.isEmpty ||
+        trimmed.runes.length > 128 ||
         trimmed.codeUnits.any((c) => c < 32 || c == 127)) {
       throw const LanFileException(
-        LanFileErrorCode.invalidArgument, '分享名称需要 1 至 128 个字符，不能包含控制字符',
+        LanFileErrorCode.invalidArgument,
+        '分享名称需要 1 至 128 个字符，不能包含控制字符',
       );
     }
     final ShareRecord record = await _requireShare(id);
@@ -400,8 +403,9 @@ final class ShareServiceImpl
         // 扫描失败不影响删除：索引本来就要一起删掉。
       }
     }
-    final LanFileStoreImpl? dbStore =
-        store is LanFileStoreImpl ? store as LanFileStoreImpl : null;
+    final LanFileStoreImpl? dbStore = store is LanFileStoreImpl
+        ? store as LanFileStoreImpl
+        : null;
     if (dbStore == null) {
       // 非 drift 实现（测试替身等）拿不到库句柄：退化为「撤销 + 停用」，
       // 并明确抛 unsupported，绝不假装删掉了。
@@ -416,14 +420,12 @@ final class ShareServiceImpl
     // 外键是 cascade，删 share 会自动带走 share_item；但仍然显式删一次索引，
     // 这样即使某个连接上 foreign_keys 没打开（例如外部工具建的库），也不会留孤儿行。
     await database.transaction(() async {
-      await (database.delete(database.shareItems)..where(
-            (ShareItems t) => t.shareId.equals(id.value),
-          ))
-          .go();
-      await (database.delete(database.shares)..where(
-            (Shares t) => t.id.equals(id.value),
-          ))
-          .go();
+      await (database.delete(
+        database.shareItems,
+      )..where((ShareItems t) => t.shareId.equals(id.value))).go();
+      await (database.delete(
+        database.shares,
+      )..where((Shares t) => t.id.equals(id.value))).go();
     });
     _scans.remove(record.id.value);
   }
@@ -505,9 +507,9 @@ final class ShareServiceImpl
 
   /// 供测试与后续撤销逻辑使用：取回链接里的分享 id 与凭证。
   ({ShareId shareId, String? token}) parseLink(Uri link) => (
-        shareId: linkBuilder.parseShareId(link),
-        token: linkBuilder.parseToken(link),
-      );
+    shareId: linkBuilder.parseShareId(link),
+    token: linkBuilder.parseToken(link),
+  );
 
   // ------------------------------------------------------- listPeerShares
 
@@ -568,10 +570,7 @@ final class ShareServiceImpl
     }
     final ShareRecord record = await _requireShare(id);
     if (record.isRevoked) {
-      throw LanFileException(
-        LanFileErrorCode.revoked,
-        '分享已撤销：${id.value}',
-      );
+      throw LanFileException(LanFileErrorCode.revoked, '分享已撤销：${id.value}');
     }
     final ShareRootKind rootKind = _parseRootKind(record.rootKind);
     final String rootKey = _rootKeyOf(rootKind, record.rootUri);
@@ -612,12 +611,12 @@ final class ShareServiceImpl
     // 1) 先查索引：命中就完全不碰磁盘。
     final ({List<TreeEntryView> entries, String? nextCursor})? fromIndex =
         await _browseFromIndex(
-      shareId: id,
-      directory: target,
-      rootKey: rootKey,
-      cursor: cursor,
-      limit: limit,
-    );
+          shareId: id,
+          directory: target,
+          rootKey: rootKey,
+          cursor: cursor,
+          limit: limit,
+        );
     if (fromIndex != null) {
       return fromIndex;
     }
@@ -638,7 +637,7 @@ final class ShareServiceImpl
   /// substr(1, prefix.runes.length) 精确比对，用 String.length（UTF-16 码元）
   /// 会让中文目录名的前缀长度多数或少数，直接错位到别的子树。
   Future<({List<TreeEntryView> entries, String? nextCursor})?>
-      _browseFromIndex({
+  _browseFromIndex({
     required ShareId shareId,
     required ItemKey directory,
     required String rootKey,
@@ -646,7 +645,10 @@ final class ShareServiceImpl
     required int limit,
   }) async {
     final bool isRoot = directory.value == rootKey;
-    final String prefix = isRoot ? '' : '${directory.value}/';
+    // SAF keys keep their root document ID, including at the share root.
+    final String prefix = isRoot && rootKey == rootItemKey
+        ? ''
+        : '${directory.value}/';
     final List<ShareItemRecord> rows = await store.listItems(
       shareId,
       prefix: prefix.isEmpty ? null : prefix,
@@ -676,10 +678,22 @@ final class ShareServiceImpl
       children.add(row);
     }
 
+    children.sort(
+      (a, b) => compareDirectoryKeys(
+        a.itemKey.value,
+        a.isDir,
+        b.itemKey.value,
+        b.isDir,
+      ),
+    );
     int begin = 0;
     if (cursor != null && cursor.isNotEmpty) {
       while (begin < children.length &&
-          children[begin].itemKey.value.compareTo(cursor) <= 0) {
+          !isAfterDirectoryCursor(
+            children[begin].itemKey.value,
+            children[begin].isDir,
+            cursor,
+          )) {
         begin++;
       }
     }
@@ -690,7 +704,10 @@ final class ShareServiceImpl
       for (int i = begin; i < end; i++) _toView(children[i]),
     ];
     final String? nextCursor = end < children.length && end > begin
-        ? children[end - 1].itemKey.value
+        ? directoryCursor(
+            children[end - 1].itemKey.value,
+            children[end - 1].isDir,
+          )
         : null;
     return (entries: entries, nextCursor: nextCursor);
   }
@@ -771,47 +788,43 @@ final class ShareServiceImpl
   }
 
   TreeEntryView _toView(ShareItemRecord row) => TreeEntryView(
-        itemKey: row.itemKey,
-        name: _displayNameOf(row.itemKey.value),
-        isDirectory: row.isDir,
-        size: row.isDir ? null : row.size,
-        modifiedAt: row.mtime,
-        mime: row.mime,
-      );
+    itemKey: row.itemKey,
+    name: _displayNameOf(row.itemKey.value),
+    isDirectory: row.isDir,
+    size: row.isDir ? null : row.size,
+    modifiedAt: row.mtime,
+    mime: row.mime,
+  );
 
   // --------------------------------------------------------------- helpers
 
   Future<ShareRecord> _requireShare(ShareId id) async {
     final ShareRecord? record = await store.findShare(id);
     if (record == null) {
-      throw LanFileException(
-        LanFileErrorCode.notFound,
-        '分享不存在：${id.value}',
-      );
+      throw LanFileException(LanFileErrorCode.notFound, '分享不存在：${id.value}');
     }
     return record;
   }
 
   /// 只翻转 flags，其余字段原样保留：避免「改一个布尔值顺手抹掉别的列」。
-  ShareRecord _withFlags(ShareRecord r, {required bool enabled}) =>
-      _recordFrom(
-        id: r.id,
-        kind: r.kind,
-        rootKind: _parseRootKind(r.rootKind),
-        rootUri: r.rootUri,
-        displayName: r.displayName,
-        createdAt: r.createdAt,
-        mode: r.mode,
-        enabled: enabled,
-        missing: r.missing,
-        isEphemeral: r.isEphemeral,
-        expiresAt: r.expiresAt,
-        passwordHash: r.passwordHash,
-        groupId: r.groupId,
-        maxSpeedKbps: r.maxSpeedKbps,
-        revokedAt: r.revokedAt,
-        sessionId: r.sessionId,
-      );
+  ShareRecord _withFlags(ShareRecord r, {required bool enabled}) => _recordFrom(
+    id: r.id,
+    kind: r.kind,
+    rootKind: _parseRootKind(r.rootKind),
+    rootUri: r.rootUri,
+    displayName: r.displayName,
+    createdAt: r.createdAt,
+    mode: r.mode,
+    enabled: enabled,
+    missing: r.missing,
+    isEphemeral: r.isEphemeral,
+    expiresAt: r.expiresAt,
+    passwordHash: r.passwordHash,
+    groupId: r.groupId,
+    maxSpeedKbps: r.maxSpeedKbps,
+    revokedAt: r.revokedAt,
+    sessionId: r.sessionId,
+  );
 
   ShareRecord _recordFrom({
     required ShareId id,
@@ -830,26 +843,25 @@ final class ShareServiceImpl
     required int? maxSpeedKbps,
     required DateTime? revokedAt,
     required String? sessionId,
-  }) =>
-      ShareRecord(
-        id: id,
-        kind: kind,
-        rootKind: rootKind.name,
-        rootUri: rootUri,
-        displayName: displayName,
-        ownerPeerId: identity.peerId,
-        createdAt: createdAt,
-        mode: mode,
-        enabled: enabled,
-        missing: missing,
-        isEphemeral: isEphemeral,
-        expiresAt: expiresAt,
-        passwordHash: passwordHash,
-        groupId: groupId,
-        maxSpeedKbps: maxSpeedKbps,
-        revokedAt: revokedAt,
-        sessionId: sessionId,
-      );
+  }) => ShareRecord(
+    id: id,
+    kind: kind,
+    rootKind: rootKind.name,
+    rootUri: rootUri,
+    displayName: displayName,
+    ownerPeerId: identity.peerId,
+    createdAt: createdAt,
+    mode: mode,
+    enabled: enabled,
+    missing: missing,
+    isEphemeral: isEphemeral,
+    expiresAt: expiresAt,
+    passwordHash: passwordHash,
+    groupId: groupId,
+    maxSpeedKbps: maxSpeedKbps,
+    revokedAt: revokedAt,
+    sessionId: sessionId,
+  );
 
   /// 打开分享根，兼容「根是单个文件」的桌面分享。
   ///
@@ -881,13 +893,11 @@ final class ShareServiceImpl
     }
     final FileRef root = await factory.openRoot(rootUri);
     if (!await root.exists()) {
-      throw LanFileException(
-        LanFileErrorCode.notFound,
-        '分享根不存在或无法访问：$rootUri',
-      );
+      throw LanFileException(LanFileErrorCode.notFound, '分享根不存在或无法访问：$rootUri');
     }
     return root;
   }
+
   FileRefFactory _factoryFor(ShareRootKind kind) {
     switch (kind) {
       case ShareRootKind.localPath:
@@ -964,7 +974,9 @@ String safRootDocumentId(String rootUri) {
 
 /// 时间戳 + 随机数：36 进制拼接，只用到字母数字，满足 ShareId 正则。
 String _uniqueSuffix() {
-  final String stamp =
-      DateTime.now().toUtc().microsecondsSinceEpoch.toRadixString(36);
+  final String stamp = DateTime.now()
+      .toUtc()
+      .microsecondsSinceEpoch
+      .toRadixString(36);
   return '$stamp${Random().nextInt(1 << 31).toRadixString(36)}';
 }

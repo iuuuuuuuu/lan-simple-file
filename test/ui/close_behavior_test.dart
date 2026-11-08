@@ -3,6 +3,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/ui/shell/close_behavior.dart';
 import 'package:lan_simple_file/ui/pages/settings_page.dart';
 import 'package:lan_simple_file/app/theme/app_theme.dart';
@@ -100,16 +103,17 @@ void main() {
   testWidgets('设置修改关闭策略立即落库并生效', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => AppMiuixTheme(child: child!),
         theme: AppTheme.light,
         home: CloseBehaviorScope(
           behavior: behavior,
-          child: const Scaffold(body: SettingsPage(currentUserName: '测试')),
+          child: const AppScaffold(body: SettingsPage(currentUserName: '测试')),
         ),
       ),
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('关闭窗口时'));
-    await tester.tap(find.byType(DropdownButton<CloseAction>));
+    await tester.tap(find.byType(MiuixOverlayDropdownMenu));
     await tester.pumpAndSettle();
     await tester.tap(find.text('彻底退出').last);
     await tester.pumpAndSettle();

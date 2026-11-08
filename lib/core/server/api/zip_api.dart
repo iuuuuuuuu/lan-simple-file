@@ -198,6 +198,7 @@ Handler shareZipHandler(ShareSource source) {
     );
     final ItemKey key = decodeSharePath(
       request.uri.queryParameters['path'] ?? '',
+      alreadyDecoded: true,
     );
     final ZipPlan plan = await planZip(target, key);
     switch (plan) {
@@ -448,7 +449,8 @@ Uint8List zipEndOfCentralDirectory(
 ) {
   final int count = central.length;
   final int centralSize = centralEnd - centralStart;
-  final bool needsZip64 = count >= 0xffff ||
+  final bool needsZip64 =
+      count >= 0xffff ||
       centralStart >= _kSentinel32 ||
       centralSize >= _kSentinel32;
   if (!needsZip64) {

@@ -3,6 +3,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/branding/app_logo.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/settings_page.dart';
@@ -35,7 +38,7 @@ void main() {
   testWidgets('Logo在窄屏名称换行后仍同高，文字放大后保持一致', (tester) async {
     await setViewport(tester, const Size(320, 800));
     await tester.pumpWidget(
-      wrapShell(const Scaffold(body: SettingsPage(currentUserName: 'test'))),
+      wrapShell(const AppScaffold(body: SettingsPage(currentUserName: 'test'))),
     );
     await tester.pumpAndSettle();
     final rects = AppLogo.values

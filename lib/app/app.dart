@@ -7,6 +7,9 @@
 library;
 
 import 'package:flutter/material.dart';
+
+import '../ui/widgets/app_controls.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ui/pages/home_page.dart';
@@ -123,24 +126,24 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
   Future<CloseAction?> _chooseClose() async {
     final context = _navigatorKey.currentContext;
     if (context == null) return null;
-    return showDialog<CloseAction>(
+    return showAppDialog<CloseAction>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         title: const Text('关闭客户端'),
         content: const Text(
           '缩回托盘后，分享与附近的人扫描会继续运行。\n'
           '将记住本次选择，你可以在设置中修改。',
         ),
         actions: [
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('取消'),
           ),
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.pop(context, CloseAction.exit),
             child: const Text('彻底退出'),
           ),
-          FilledButton(
+          AppButton.primary(
             onPressed: _closeBehavior?.trayReady == true
                 ? () => Navigator.pop(context, CloseAction.tray)
                 : null,
@@ -154,13 +157,13 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
   void _reportCloseError(Object error, {String title = '无法关闭窗口'}) {
     final context = _navigatorKey.currentContext;
     if (context == null) return;
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         title: Text(title),
         content: Text(error.toString()),
         actions: [
-          TextButton(
+          AppButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('知道了'),
           ),
@@ -182,17 +185,19 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
     final AppThemeMode mode = ref.watch(themeModeProvider);
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      builder: (context, child) => LogoScope(
-        controller: _logo,
-        child: _closeBehavior == null
-            ? child!
-            : StartupBehaviorScope(
-                behavior: _startupBehavior!,
-                child: CloseBehaviorScope(
-                  behavior: _closeBehavior!,
-                  child: child!,
+      builder: (context, child) => AppMiuixTheme(
+        child: LogoScope(
+          controller: _logo,
+          child: _closeBehavior == null
+              ? child!
+              : StartupBehaviorScope(
+                  behavior: _startupBehavior!,
+                  child: CloseBehaviorScope(
+                    behavior: _closeBehavior!,
+                    child: child!,
+                  ),
                 ),
-              ),
+        ),
       ),
       title: '局域网文件共享',
       debugShowCheckedModeBanner: false,

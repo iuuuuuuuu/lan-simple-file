@@ -4,6 +4,9 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/branding/app_logo.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/settings_page.dart';
@@ -74,7 +77,7 @@ void main() {
     expect(controller.value, AppLogo.chatFolder);
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: LogoScope(
             controller: controller,
             child: const SettingsPage(currentUserName: '测试用户'),
@@ -116,8 +119,8 @@ void main() {
     await tester.pumpWidget(wrapWithTheme(SharesPage(source: source)));
     await tester.pumpAndSettle();
     expect(find.byType(GridView), findsOneWidget);
-    final first = tester.getRect(find.text('项目资料'));
-    final second = tester.getRect(find.text('旅行照片'));
+    final first = tester.getRect(find.text('旅行照片'));
+    final second = tester.getRect(find.text('音乐'));
     expect(first.top, second.top);
     expect(first.left, lessThan(second.left));
     final search = find.byKey(const ValueKey('my-shares-search'));
@@ -137,10 +140,10 @@ void main() {
     ShareId? picked;
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: Builder(
             builder: (context) => TextButton(
-              onPressed: () async => picked = await showDialog<ShareId>(
+              onPressed: () async => picked = await showAppDialog<ShareId>(
                 context: context,
                 builder: (_) => SharePickerDialog(
                   shares: [
@@ -178,7 +181,7 @@ void main() {
     final paths = <String>[];
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: ChatPane(
             threadId: 'g_family',
             title: '家人群',
@@ -222,7 +225,7 @@ void main() {
     addTearDown(messaging.updates.close);
     await tester.pumpWidget(
       wrapShell(
-        Scaffold(
+        AppScaffold(
           body: ChatPane(
             threadId: 'g_family',
             title: '家人群',

@@ -7,6 +7,9 @@
 library;
 
 import 'package:flutter/material.dart';
+
+import 'app_controls.dart';
+
 import 'package:path/path.dart' as p;
 
 import '../../app/theme/tokens.dart';
@@ -120,8 +123,7 @@ class ShareRow extends StatelessWidget {
         ? location
         : share.displayName;
 
-    return Card(
-      margin: compact ? EdgeInsets.zero : null,
+    return MiuixCard(
       child: Padding(
         padding: compact
             ? const EdgeInsets.fromLTRB(12, 8, 8, 8)
@@ -140,7 +142,7 @@ class ShareRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Tooltip(
+                  child: AppTooltip(
                     message: title,
                     child: Text(
                       title,
@@ -163,7 +165,7 @@ class ShareRow extends StatelessWidget {
               ],
             ),
             SizedBox(height: compact ? 2 : 6),
-            Tooltip(
+            AppTooltip(
               message: location,
               child: Text(
                 location,
@@ -187,13 +189,13 @@ class ShareRow extends StatelessWidget {
                 // 之前是渲染出禁用态按钮：菜单化之后，卡片上不该再出现
                 // 一排灰按钮占位置（那正是用户要求收进菜单的原因）。
                 if (onCopyLink != null)
-                  TextButton.icon(
+                  AppButton.icon(
                     onPressed: active ? onCopyLink : null,
                     icon: const Icon(Icons.link, size: 16),
                     label: const Text('复制链接'),
                   ),
                 if (onStop != null)
-                  TextButton.icon(
+                  AppButton.icon(
                     onPressed: active ? onStop : null,
                     icon: const Icon(Icons.stop_circle_outlined, size: 16),
                     label: const Text('停止共享'),
@@ -223,17 +225,10 @@ class ShareStatusChip extends StatelessWidget {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     final bool active = status == ShareStatus.active;
     final Color color = active ? tokens.accent : tokens.fgDim;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color),
-        color: active ? tokens.accent.withValues(alpha: 0.10) : null,
-      ),
-      child: Text(
-        shareStatusLabel(status),
-        style: TextStyle(fontSize: 11, color: color),
-      ),
+    return MiuixBadge(
+      containerColor: active ? tokens.accent.withValues(alpha: .10) : tokens.bg,
+      contentColor: color,
+      child: Text(shareStatusLabel(status)),
     );
   }
 }

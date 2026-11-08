@@ -11,14 +11,22 @@ import 'dart:io';
 
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 
+import '../diagnostics/network_log.dart';
+
 import 'response.dart';
 import 'router.dart';
 
 /// 未匹配到路由时的处理器。
-typedef NotFoundHandler = Future<void> Function(HttpRequest request, Set<String> allowedMethods);
+typedef NotFoundHandler = Future<void> Function(
+  HttpRequest request,
+  Set<String> allowedMethods,
+);
 
 /// 未预期异常的兜底上报；默认写 stderr，绝不静默吞掉。
-typedef UnhandledErrorReporter = void Function(Object error, StackTrace stackTrace);
+typedef UnhandledErrorReporter = void Function(
+  Object error,
+  StackTrace stackTrace,
+);
 
 /// 一个绑定在局域网地址上的 HTTP 服务。
 final class HttpServerHost {
@@ -89,6 +97,10 @@ final class HttpServerHost {
         );
         server.autoCompress = false;
         _server = server;
+        NetworkLog.record('http.listening', {
+          'address': server.address.address,
+          'port': server.port,
+        });
         server.listen(
           _handleRequest,
           onError: (Object error, StackTrace stackTrace) {
@@ -97,6 +109,10 @@ final class HttpServerHost {
         );
         return server.port;
       } on SocketException catch (error) {
+        NetworkLog.record('http.bind_error', {
+          'attemptPort': candidate,
+          ...NetworkLog.errorFields(error),
+        });
         lastError = error;
         continue;
       }
@@ -113,6 +129,7 @@ final class HttpServerHost {
     final HttpServer? server = _server;
     if (server == null) return;
     _server = null;
+    NetworkLog.record('http.stop', {'port': server.port});
     if (_inFlight > 0 && (_drained == null || _drained!.isCompleted)) {
       _drained = Completer<void>();
     }
@@ -133,11 +150,27 @@ final class HttpServerHost {
   }
 
   Future<void> _runRequest(HttpRequest request) async {
+    // Log only fixed route categories: URLs may carry capability credentials.
+    final route = request.uri.path == '/'
+        ? 'root'
+        : request.uri.path == '/api/v1/ping'
+        ? 'ping'
+        : 'other';
+    NetworkLog.record('http.request', {
+      'source': request.connectionInfo?.remoteAddress.address,
+      'localPort': request.connectionInfo?.localPort,
+      'method': request.method,
+      'route': route,
+    });
     try {
       await _dispatch(request);
     } catch (error, stackTrace) {
       await _failRequest(request, error, stackTrace);
     } finally {
+      NetworkLog.record('http.response', {
+        'route': route,
+        'status': request.response.statusCode,
+      });
       _inFlight--;
       final Completer<void>? drained = _drained;
       if (_inFlight == 0 && drained != null && !drained.isCompleted) {
@@ -197,11 +230,7 @@ final class HttpServerHost {
       }
       await errorResponse(
         response,
-        LanFileException(
-          LanFileErrorCode.internal,
-          '服务端处理请求时出错',
-          cause: error,
-        ),
+        LanFileException(LanFileErrorCode.internal, '服务端处理请求时出错', cause: error),
       );
     } catch (secondary, secondaryStack) {
       _report(error, stackTrace);
@@ -215,6 +244,7 @@ final class HttpServerHost {
   }
 
   void _report(Object error, StackTrace stackTrace) {
+    NetworkLog.record('http.error', NetworkLog.errorFields(error));
     final UnhandledErrorReporter? reporter = onUnhandledError;
     if (reporter != null) {
       reporter(error, stackTrace);

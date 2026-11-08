@@ -10,6 +10,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
 
@@ -142,28 +144,10 @@ class UnreadPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     if (count <= 0) return const SizedBox.shrink();
-    return Container(
-      constraints: const BoxConstraints(minWidth: 16),
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 5 : 7,
-        vertical: compact ? 1 : 2,
-      ),
-      decoration: BoxDecoration(
-        color: tokens.accent,
-        borderRadius: BorderRadius.circular(LanFileMetrics.radiusPill),
-        // 与头像重叠时需要的分隔感：用页面底色描边而不是再加颜色。
-        border: Border.all(color: tokens.bg, width: 1.5),
-      ),
-      child: Text(
-        count > 99 ? '99+' : '$count',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: compact ? 10 : 11,
-          height: 1.26,
-          fontWeight: FontWeight.w600,
-          color: tokens.onAccent,
-        ),
-      ),
+    return MiuixBadge(
+      containerColor: tokens.accent,
+      contentColor: tokens.onAccent,
+      child: Text(count > 99 ? '99+' : '$count'),
     );
   }
 }

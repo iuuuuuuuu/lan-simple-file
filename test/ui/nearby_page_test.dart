@@ -7,6 +7,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/nearby_page.dart';
@@ -26,7 +29,7 @@ void main() {
       expect(find.textContaining('防火墙'), findsOneWidget);
       expect(find.textContaining('UDP'), findsOneWidget);
       expect(find.text('重新搜索'), findsNothing);
-      expect(find.byTooltip('刷新'), findsNothing);
+      expect(findAppTooltip('刷新'), findsNothing);
       // 确认不是白屏：什么都没渲染才是失败。
       expect(find.byType(PeerCard), findsNothing);
     });
@@ -78,7 +81,7 @@ void main() {
       await tester.pumpAndSettle();
       // The fallback title and the copyable device ID both retain the identity.
       expect(find.text(peerOf('03').value), findsNWidgets(2));
-      expect(find.byTooltip('复制设备 ID'), findsOneWidget);
+      expect(findAppTooltip('复制设备 ID'), findsOneWidget);
     });
 
     testWidgets('同名设备可按 ID 搜索，搜索会展开已折叠分组', (tester) async {

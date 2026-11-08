@@ -23,6 +23,7 @@ import 'package:lan_simple_file/core/discovery/peer_key_bootstrap.dart';
 import 'package:lan_simple_file/core/platform/browser_link_policy.dart';
 import 'package:lan_simple_file/core/platform/peer_browser_links.dart';
 import 'package:lan_simple_file/core/net/peer_local_domain.dart';
+import 'package:lan_simple_file/core/net/peer_share_catalog.dart';
 import 'package:lan_simple_file/core/files/local_ref_factory.dart';
 import 'package:lan_simple_file/core/files/saf_bridge.dart';
 import 'package:lan_simple_file/core/files/saf_ref_factory.dart';
@@ -396,6 +397,31 @@ final class AppServices {
       host: endpoint.host,
       port: domain?.port ?? endpoint.port,
       shareId: share,
+      localDomain: await browserLinkPolicy.domainFor(domain?.host),
+    );
+  }
+
+  PeerShareClient peerShareClient(PeerId peer) => PeerShareClient(
+    peer: peer,
+    endpointFor: () async => peer == identity.peerId
+        ? (host: '127.0.0.1', port: port)
+        : await discovery.findEndpoint(peer),
+  );
+
+  Future<Uri> buildPeerWebHomeLink(PeerId peer) async {
+    if (peer == identity.peerId) return buildWebHomeLink();
+    final endpoint = await discovery.findEndpoint(peer);
+    if (endpoint == null) {
+      throw const LanFileException(LanFileErrorCode.providerOffline, '对方已离线');
+    }
+    final domain = await fetchPeerLocalDomain(
+      peer,
+      endpoint,
+      requireIdentity: true,
+    );
+    return buildWebHomeUrl(
+      host: endpoint.host,
+      port: domain?.port ?? endpoint.port,
       localDomain: await browserLinkPolicy.domainFor(domain?.host),
     );
   }

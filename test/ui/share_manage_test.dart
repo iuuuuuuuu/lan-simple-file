@@ -12,6 +12,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/ui/pages/shares_page.dart';
 import 'package:lan_simple_file/ui/widgets/app_toast.dart';
@@ -85,7 +88,7 @@ void main() {
 
       await tapMenuAction(tester, '删除');
       // 对话框里的「删除」按钮（与行内的同名，取最后出现的那个）。
-      await tester.tap(find.widgetWithText(FilledButton, '删除'));
+      await tester.tap(find.widgetWithText(AppButton, '删除'));
       // 先让对话框退出动画走完，再检查 Toast；否则 overlay 会被动画帧覆盖。
       await tester.pumpAndSettle();
       await settleToast(tester);
@@ -107,7 +110,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tapMenuAction(tester, '删除');
-      await tester.tap(find.widgetWithText(FilledButton, '删除'));
+      await tester.tap(find.widgetWithText(AppButton, '删除'));
       await tester.pumpAndSettle();
       await settleToast(tester);
 
@@ -181,6 +184,30 @@ void main() {
   });
 
   group('C. 展开查看文件', () {
+    testWidgets(
+      'SAF preview goes back to the selected root without climbing above it',
+      (tester) async {
+        const child = 'primary:DCIM/Camera/photos';
+        final source = FakeMySharesSource()
+          ..shares = [shareRecord(id: 'saf-preview', displayName: 'Camera')]
+          ..entriesByPath = {
+            '': [entryOf(key: child, name: 'photos', dir: true)],
+            child: [entryOf(key: '$child/a.txt', name: 'a.txt', size: 1)],
+          };
+        await tester.pumpWidget(wrapWithTheme(SharesPage(source: source)));
+        await tester.pumpAndSettle();
+        await tapMenuAction(tester, '展开查看文件');
+        await tester.tap(find.text('photos'));
+        await tester.pumpAndSettle();
+        expect(source.browsedPaths.last, child);
+        await tester.tap(findAppTooltip('返回上一级'));
+        await tester.pumpAndSettle();
+        expect(source.browsedPaths, [null, child, null]);
+        expect(find.text('photos'), findsOneWidget);
+        expect(findAppTooltip('返回上一级'), findsNothing);
+      },
+    );
+
     testWidgets('点展开 -> 看见 3 行；点目录 -> 带子路径再 browse', (
       WidgetTester tester,
     ) async {
@@ -261,7 +288,7 @@ void main() {
 
       await tapMenuAction(tester, '展开查看文件');
 
-      await tester.tap(find.byTooltip('下载'));
+      await tester.tap(findAppTooltip('下载'));
       await tester.pumpAndSettle();
 
       expect(downloaded, hasLength(1));
@@ -279,13 +306,17 @@ void main() {
 
       await tapMenuAction(tester, '展开查看文件');
       // 现在内容在 Dialog 里，而不是卡片内嵌。
-      expect(find.byType(Dialog), findsOneWidget, reason: '用户明确要求「查看文件弹窗查看」');
+      expect(
+        find.byType(AppDialog),
+        findsOneWidget,
+        reason: '用户明确要求「查看文件弹窗查看」',
+      );
       expect(find.text('a.txt'), findsOneWidget);
 
       // 点关闭按钮收起弹窗，内容随之消失。
-      await tester.tap(find.byTooltip('关闭'));
+      await tester.tap(findAppTooltip('关闭'));
       await tester.pumpAndSettle();
-      expect(find.byType(Dialog), findsNothing);
+      expect(find.byType(AppDialog), findsNothing);
       expect(find.text('a.txt'), findsNothing);
     });
   });

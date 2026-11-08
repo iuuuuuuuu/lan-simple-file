@@ -52,6 +52,9 @@ final class MutableRejectedCounter implements RejectedDatagramCounter {
   int _malformed = 0;
   int _fromSelf = 0;
   int _unknownPeerId = 0;
+  int transportErrors = 0;
+  final List<String> _transportReasons = [];
+  List<String> get transportReasons => List.unmodifiable(_transportReasons);
   final List<String> _recentReasons = <String>[];
 
   /// 最多保留多少条原因；超出丢最旧的。
@@ -94,6 +97,12 @@ final class MutableRejectedCounter implements RejectedDatagramCounter {
     _remember('畸形包: $reason');
   }
 
+  void recordTransportError(Object error) {
+    transportErrors++;
+    _transportReasons.add('通道错误: $error');
+    if (_transportReasons.length > maxReasons) _transportReasons.removeAt(0);
+  }
+
   /// 记一次自己的回环包。
   void recordSelf() {
     _fromSelf++;
@@ -111,6 +120,8 @@ final class MutableRejectedCounter implements RejectedDatagramCounter {
     _malformed = 0;
     _fromSelf = 0;
     _unknownPeerId = 0;
+    transportErrors = 0;
+    _transportReasons.clear();
     _recentReasons.clear();
   }
 
@@ -212,6 +223,23 @@ final class AnnounceServiceImpl implements AnnounceService {
   /// 最近一次公告的发送报告，供排障。
   SendReport? lastSendReport;
 
+  Map<String, Object?> get diagnosticState => {
+    'running': _running,
+    'bound': _channel?.isBound ?? false,
+    'unexpectedlyEnded': _channel?.unexpectedlyEnded ?? false,
+    'boundPort': _channel?.boundPort,
+    'sendOnly': _degradedSendOnly,
+    'joinedInterfaces': debugJoinedInterfaces,
+    'sendFailures': _channel?.sendFailures,
+    'receiveFailures': _channel?.receiveFailures,
+    'transportErrors': _rejected.transportErrors,
+    'lastBroadcastTargets': lastSendReport?.broadcastTargets,
+    'lastMulticastTargets': lastSendReport?.multicastTargets,
+    'lastSendFailureCount': lastSendReport?.failures.length,
+    'malformed': _rejected.malformed,
+    'selfPackets': _rejected.fromSelf,
+  };
+
   /// 当前是否在跑。
   bool get isRunning => _running;
 
@@ -256,8 +284,7 @@ final class AnnounceServiceImpl implements AnnounceService {
       multicastGroup: _multicast.address.address,
       onDatagram: _handleDatagram,
       onError: (Object error, StackTrace? stackTrace) {
-        // 收包错误不静默：计数账本里留痕，由 rejected 暴露给 UI。
-        _rejected.recordMalformed('通道错误: $error');
+        _rejected.recordTransportError(error);
       },
     );
     try {
@@ -276,7 +303,7 @@ final class AnnounceServiceImpl implements AnnounceService {
         multicastGroup: _multicast.address.address,
         onDatagram: null,
         onError: (Object e, StackTrace? s) {
-          _rejected.recordMalformed('降级通道错误: $e');
+          _rejected.recordTransportError(e);
         },
       );
       try {

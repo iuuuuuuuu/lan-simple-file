@@ -118,6 +118,7 @@ Future<void> pumpDemo(
 
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => AppMiuixTheme(child: child!),
       theme: withCjkFont(AppTheme.of(LanFilePalette.of(brightness))),
       home: QqShell(
         sessionSource: DemoSource(),

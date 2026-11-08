@@ -66,8 +66,8 @@ void main() {
   setUp(() async {
     root = await Directory.systemTemp.createTemp('lsf_share_');
     // 三层嵌套 + 中文名 + 空格名。
-    final Directory nested =
-        await Directory('${root.path}/a/b').create(recursive: true);
+    final Directory nested = await Directory('${root.path}/a/b')
+        .create(recursive: true);
     await File('${root.path}/top.txt').writeAsString('top-level');
     await File('${root.path}/a/mid.bin')
         .writeAsBytes(List<int>.generate(700, (int i) => i % 256));
@@ -117,7 +117,10 @@ void main() {
 
   group('取件页', () {
     test('GET /s/:id 注入分享标识与名字，并含客户端引导入口', () async {
-      final HttpClientResponse response = await _get(client, url('/s/$kShareId'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId'),
+      );
       expect(response.statusCode, 200);
       expect(response.headers.contentType?.mimeType, 'text/html');
       final String html = utf8.decode(await _collect(response));
@@ -165,34 +168,93 @@ void main() {
     });
 
     test('未知分享返回 404 且带可读提示', () async {
-      final HttpClientResponse response =
-          await _get(client, url('/s/shrUNKNOWN01'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/shrUNKNOWN01'),
+      );
       expect(response.statusCode, 404);
-      final Map<String, Object?> json =
-          jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+      final Map<String, Object?> json = jsonDecode(
+        utf8.decode(await _collect(response)),
+      ) as Map<String, Object?>;
       expect(json['code'], LanFileErrorCode.notFound.name);
       expect(json['message'], contains('不存在'));
     });
   });
 
   group('tree 分页', () {
+    test(
+      'HTTP directory cursor survives deletion and orders folders first',
+      () async {
+        Directory('${root.path}/z-folder').createSync();
+        Future<Map<String, dynamic>> page(String? cursor) async {
+          final uri = url('/s/$kShareId/tree')
+              .replace(queryParameters: {'limit': '1', 'cursor': ?cursor});
+          final response = await _get(client, uri);
+          expect(response.statusCode, 200);
+          return jsonDecode(utf8.decode(await _collect(response)))
+              as Map<String, dynamic>;
+        }
+
+        final first = await page(null);
+        expect(first['entries'].single['key'], 'a');
+        Directory('${root.path}/a').deleteSync(recursive: true);
+        final second = await page(first['nextCursor'] as String);
+        expect(second['entries'].single['key'], 'z-folder');
+        final third = await page(second['nextCursor'] as String);
+        expect(third['entries'].single['isDir'], isFalse);
+      },
+    );
+
+    test(
+      'literal percent names survive query decoding and file downloads',
+      () async {
+        final folder = await Directory('${root.path}/100%20').create();
+        await File('${folder.path}/50%.txt').writeAsString('percent-bytes');
+        for (final route in ['tree', 'zip']) {
+          final response = await _get(
+            client,
+            url('/s/$kShareId/$route')
+                .replace(queryParameters: {'path': '100%20'}),
+          );
+          final bytes = await _collect(response);
+          expect(response.statusCode, 200);
+          if (route == 'tree') {
+            final data = jsonDecode(utf8.decode(bytes));
+            expect(data['entries'].single['key'], '100%20/50%.txt');
+          } else {
+            final zip = ZipDecoder().decodeBytes(bytes);
+            expect(zip.files.single.name, '50%.txt');
+            expect(utf8.decode(zip.files.single.content), 'percent-bytes');
+          }
+        }
+        final response = await _get(
+          client,
+          url('/s/$kShareId/f/100%2520/50%25.txt'),
+        );
+        expect(response.statusCode, 200);
+        expect(utf8.decode(await _collect(response)), 'percent-bytes');
+      },
+    );
+
     test('根目录列出条目，结构完整且目录排在前', () async {
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/tree'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/tree'),
+      );
       expect(response.statusCode, 200);
-      final Map<String, Object?> json =
-          jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+      final Map<String, Object?> json = jsonDecode(
+        utf8.decode(await _collect(response)),
+      ) as Map<String, Object?>;
       final List<Object?> entries = json['entries']! as List<Object?>;
-      final List<Map<String, Object?>> rows =
-          entries.cast<Map<String, Object?>>();
-      final Set<String> names =
-          rows.map((Map<String, Object?> r) => r['name']! as String).toSet();
-      expect(names, containsAll(<String>[
-        'a',
-        'top.txt',
-        '中文 名字.txt',
-        '空文件.txt',
-      ]));
+      final List<Map<String, Object?>> rows = entries
+          .cast<Map<String, Object?>>();
+      final Set<String> names = rows
+          .map((Map<String, Object?> r) => r['name']! as String)
+          .toSet();
+      expect(
+        names,
+        containsAll(<String>['a', 'top.txt', '中文 名字.txt', '空文件.txt']),
+      );
       final Map<String, Object?> first = rows.first;
       expect(first.keys.toSet(), <String>{
         'key',
@@ -203,8 +265,9 @@ void main() {
         'mime',
       });
       expect(json['nextCursor'], isNull);
-      final Map<String, Object?> dirRow =
-          rows.firstWhere((Map<String, Object?> r) => r['name'] == 'a');
+      final Map<String, Object?> dirRow = rows.firstWhere(
+        (Map<String, Object?> r) => r['name'] == 'a',
+      );
       expect(dirRow['isDir'], isTrue);
     });
 
@@ -215,10 +278,13 @@ void main() {
       while (true) {
         final Uri uri = cursor == null
             ? url('/s/$kShareId/tree?limit=2')
-            : url('/s/$kShareId/tree?limit=2&cursor=${Uri.encodeQueryComponent(cursor)}');
+            : url(
+                '/s/$kShareId/tree?limit=2&cursor=${Uri.encodeQueryComponent(cursor)}',
+              );
         final HttpClientResponse response = await _get(client, uri);
-        final Map<String, Object?> json =
-            jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+        final Map<String, Object?> json = jsonDecode(
+          utf8.decode(await _collect(response)),
+        ) as Map<String, Object?>;
         final List<Map<String, Object?>> rows =
             (json['entries']! as List<Object?>).cast<Map<String, Object?>>();
         expect(rows.length, lessThanOrEqualTo(2));
@@ -237,11 +303,14 @@ void main() {
         url('/s/$kShareId/tree?path=${Uri.encodeQueryComponent('a/b')}'),
       );
       expect(response.statusCode, 200);
-      final Map<String, Object?> json =
-          jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+      final Map<String, Object?> json = jsonDecode(
+        utf8.decode(await _collect(response)),
+      ) as Map<String, Object?>;
       final List<Map<String, Object?>> rows =
           (json['entries']! as List<Object?>).cast<Map<String, Object?>>();
-      expect(rows.map((Map<String, Object?> r) => r['name']), <String>['deep.txt']);
+      expect(rows.map((Map<String, Object?> r) => r['name']), <String>[
+        'deep.txt',
+      ]);
     });
 
     test('对文件调用 tree 返回 400', () async {
@@ -250,8 +319,9 @@ void main() {
         url('/s/$kShareId/tree?path=top.txt'),
       );
       expect(response.statusCode, 400);
-      final Map<String, Object?> json =
-          jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+      final Map<String, Object?> json = jsonDecode(
+        utf8.decode(await _collect(response)),
+      ) as Map<String, Object?>;
       expect(json['code'], LanFileErrorCode.invalidArgument.name);
     });
   });
@@ -260,8 +330,10 @@ void main() {
     test('取完整文件，字节与磁盘一致', () async {
       final File source = File('${root.path}/a/mid.bin');
       final Uint8List expected = await source.readAsBytes();
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/f/a/mid.bin'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/f/a/mid.bin'),
+      );
       expect(response.statusCode, 200);
       expect(response.headers.value(HttpHeaders.acceptRangesHeader), 'bytes');
       expect(response.headers.value(HttpHeaders.etagHeader), isNotNull);
@@ -270,8 +342,8 @@ void main() {
     });
 
     test('Range: bytes=100-199 返回 206 且字节正确', () async {
-      final Uint8List expected =
-          await File('${root.path}/a/mid.bin').readAsBytes();
+      final Uint8List expected = await File('${root.path}/a/mid.bin')
+          .readAsBytes();
       final HttpClientResponse response = await _get(
         client,
         url('/s/$kShareId/f/a/mid.bin'),
@@ -307,8 +379,10 @@ void main() {
     });
 
     test('If-None-Match 命中 ETag 时返回 304', () async {
-      final HttpClientResponse first =
-          await _get(client, url('/s/$kShareId/f/top.txt'));
+      final HttpClientResponse first = await _get(
+        client,
+        url('/s/$kShareId/f/top.txt'),
+      );
       final String? etag = first.headers.value(HttpHeaders.etagHeader);
       await _collect(first);
       expect(etag, isNotNull);
@@ -327,8 +401,7 @@ void main() {
         url('/s/$kShareId/f/${Uri.encodeComponent('中文 名字.txt')}'),
       );
       expect(response.statusCode, 200);
-      final String? disposition =
-          response.headers.value('content-disposition');
+      final String? disposition = response.headers.value('content-disposition');
       expect(disposition, isNotNull);
       expect(disposition, contains("filename*=UTF-8''"));
       expect(
@@ -360,10 +433,16 @@ void main() {
         final HttpClientResponse response = await _get(client, url(attack));
         expect(response.statusCode, 403, reason: 'attack: $attack');
         final Uint8List body = await _collect(response);
-        expect(body, isNot(contains('top-level'.codeUnits)),
-            reason: 'attack: $attack 泄漏了 root 内内容');
-        expect(body, isNot(contains('root:'.codeUnits)),
-            reason: 'attack: $attack 泄漏了系统文件');
+        expect(
+          body,
+          isNot(contains('top-level'.codeUnits)),
+          reason: 'attack: $attack 泄漏了 root 内内容',
+        );
+        expect(
+          body,
+          isNot(contains('root:'.codeUnits)),
+          reason: 'attack: $attack 泄漏了系统文件',
+        );
       }
     });
 
@@ -388,15 +467,18 @@ void main() {
 
   group('zip 打包', () {
     test('打包后可解压，文件数与内容 sha256 全部一致', () async {
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/zip'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/zip'),
+      );
       expect(response.statusCode, 200);
       expect(response.headers.contentType?.mimeType, 'application/zip');
       final Uint8List archiveBytes = await _collect(response);
 
       final Archive archive = ZipDecoder().decodeBytes(archiveBytes);
-      final List<ArchiveFile> files =
-          archive.where((ArchiveFile f) => f.isFile).toList();
+      final List<ArchiveFile> files = archive
+          .where((ArchiveFile f) => f.isFile)
+          .toList();
       expect(files.length, 5, reason: '根下共 5 个文件（含两级子目录）');
 
       final Map<String, List<int>> actual = <String, List<int>>{
@@ -411,8 +493,8 @@ void main() {
       });
 
       for (final String name in actual.keys) {
-        final List<int> expected =
-            await File('${root.path}/$name').readAsBytes();
+        final List<int> expected = await File('${root.path}/$name')
+            .readAsBytes();
         expect(
           sha256Hex(actual[name]!),
           sha256Hex(expected),
@@ -422,13 +504,20 @@ void main() {
     });
 
     test('zip 条目使用 store（不压缩），长度与原文一致', () async {
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/zip'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/zip'),
+      );
       final Uint8List archiveBytes = await _collect(response);
       final Archive archive = ZipDecoder().decodeBytes(archiveBytes);
-      for (final ArchiveFile file in archive.where((ArchiveFile f) => f.isFile)) {
-        expect(file.compression, CompressionType.none,
-            reason: '${file.name} 应为 store');
+      for (final ArchiveFile file in archive.where(
+        (ArchiveFile f) => f.isFile,
+      )) {
+        expect(
+          file.compression,
+          CompressionType.none,
+          reason: '${file.name} 应为 store',
+        );
       }
     });
 
@@ -438,7 +527,9 @@ void main() {
         url('/s/$kShareId/zip?path=a'),
       );
       expect(response.statusCode, 200);
-      final Archive archive = ZipDecoder().decodeBytes(await _collect(response));
+      final Archive archive = ZipDecoder().decodeBytes(
+        await _collect(response),
+      );
       final Set<String> names = archive
           .where((ArchiveFile f) => f.isFile)
           .map((ArchiveFile f) => f.name)
@@ -448,8 +539,10 @@ void main() {
 
     test('空目录返回 404 而不是产出空 zip', () async {
       await Directory('${root.path}/empty').create();
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/zip?path=empty'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/zip?path=empty'),
+      );
       expect(response.statusCode, 404);
       await _collect(response);
     });
@@ -459,12 +552,15 @@ void main() {
       for (int i = 0; i < kZipMaxEntries + 5; i++) {
         await File('${many.path}/f$i.bin').writeAsBytes(<int>[i % 256]);
       }
-      final HttpClientResponse response =
-          await _get(client, url('/s/$kShareId/zip?path=many'));
+      final HttpClientResponse response = await _get(
+        client,
+        url('/s/$kShareId/zip?path=many'),
+      );
       expect(response.statusCode, 200);
       expect(response.headers.contentType?.mimeType, 'application/json');
-      final Map<String, Object?> json =
-          jsonDecode(utf8.decode(await _collect(response))) as Map<String, Object?>;
+      final Map<String, Object?> json = jsonDecode(
+        utf8.decode(await _collect(response)),
+      ) as Map<String, Object?>;
       expect(json['mode'], 'manifest');
       expect(json['total'], greaterThan(kZipMaxEntries));
       expect((json['sample']! as List<Object?>).length, lessThanOrEqualTo(20));

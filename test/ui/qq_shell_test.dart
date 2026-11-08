@@ -5,6 +5,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/shell/qq_shell.dart';
@@ -49,6 +52,7 @@ final class FakeDropHandler implements DropShareHandler {
 /// 都骗成了宽屏（外壳读到 1280，看到的三栏永远存在）。测试必须只看真实视口。
 Widget wrapShell(Widget child, {Brightness brightness = Brightness.light}) {
   return MaterialApp(
+    builder: (context, child) => AppMiuixTheme(child: child!),
     theme: AppTheme.of(LanFilePalette.of(brightness)),
     home: child,
   );
@@ -113,10 +117,7 @@ void main() {
         wrapShell(QqShell(sessionSource: FakeSessionSource())),
       );
       await tester.pumpAndSettle();
-      final Scaffold scaffold = tester.widget<Scaffold>(
-        find.byType(Scaffold).first,
-      );
-      expect(scaffold.drawer, isNull);
+      expect(find.byType(Drawer), findsNothing);
       expect(
         find.byKey(const ValueKey<String>('shell-open-drawer')),
         findsNothing,
@@ -155,10 +156,7 @@ void main() {
         find.byKey(const ValueKey<String>('shell-open-drawer')),
         findsNothing,
       );
-      expect(
-        tester.widget<Scaffold>(find.byType(Scaffold).first).drawer,
-        isNull,
-      );
+      expect(find.byType(Drawer), findsNothing);
       expect(find.byKey(const ValueKey<String>('shell-list')), findsOneWidget);
     });
   });
@@ -244,18 +242,20 @@ void main() {
             ? LanFilePalette.dark
             : LanFilePalette.light;
 
-        final Container rail = tester.widget<Container>(
-          find.byKey(const ValueKey<String>('shell-rail')),
+        final railContext = tester.element(
+          find.byKey(const ValueKey('shell-rail')),
         );
+        final railColor = MiuixNavigationRailDefaults.colors(railContext)
+            .background;
         // 最远层：页面底色。
-        expect(rail.color, equals(expected.bg));
+        expect(railColor, equals(expected.bg));
 
         final Container list = tester.widget<Container>(
           find.byKey(const ValueKey<String>('shell-list')),
         );
         // 中间层：surfaceSunken，必须与 rail 有明显明度差。
         expect(list.color, equals(expected.surfaceSunken));
-        expect(list.color, isNot(equals(rail.color)), reason: '三块背景必须有可见层次差');
+        expect(list.color, isNot(equals(railColor)), reason: '三块背景必须有可见层次差');
       }
     });
   });

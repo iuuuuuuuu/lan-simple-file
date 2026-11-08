@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 
 import '../contracts/errors.dart';
 import '../contracts/types.dart';
+import 'directory_order.dart';
 
 /// 与 Kotlin 侧约定的通道名。
 const String kSafChannelName = 'lan.simple.file/saf';
@@ -44,7 +45,7 @@ final class SafBridge {
   ///
   /// 返回项已归一化为固定键集：documentId / name / isDirectory /
   /// size / lastModified / mime（未知值为 null）。
-  /// [cursor] 为上一页最后一条 documentId。
+  /// [cursor] carries the previous document ID and whether it was a directory.
   Future<List<Map<String, Object?>>> listChildren(
     String treeUri,
     String documentId, {
@@ -60,12 +61,14 @@ final class SafBridge {
       );
     }
     if (cursor != null) {
-      _requireKey(cursor, 'cursor');
+      _requireKey(decodeDirectoryCursor(cursor).key, 'cursor');
     }
     final Object? raw = await _invoke('listChildren', <String, Object?>{
       'treeUri': treeUri,
       'documentId': documentId,
-      'cursor': cursor,
+      'cursor': cursor == null ? null : decodeDirectoryCursor(cursor).key,
+      'cursorIsDirectory':
+          cursor != null && decodeDirectoryCursor(cursor).isDirectory,
       'limit': limit,
     });
     if (raw is! List) {

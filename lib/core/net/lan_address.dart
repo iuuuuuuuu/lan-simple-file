@@ -15,6 +15,7 @@ import 'dart:io';
 
 import '../contracts/contracts.dart';
 import 'lan_address_guard.dart';
+import 'lan_interfaces.dart';
 import 'local_domain.dart' show isLocalDomain;
 
 /// 选出最适合对外通告的本机 IPv4 地址。
@@ -27,19 +28,27 @@ import 'local_domain.dart' show isLocalDomain;
 ///    有些机器只有这一块在用。
 ///
 /// 找不到返回 null：**不猜**。调用方据此给可读提示，而不是拼一个必然失效的链接。
-Future<String?> pickLanAddress() async {
+Future<String?> pickLanAddress({
+  Future<List<NetworkInterface>> Function()? listInterfaces,
+  String? operatingSystem,
+}) async {
   final List<NetworkInterface> interfaces;
   try {
-    interfaces = await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
-      includeLoopback: false,
-      includeLinkLocal: false,
+    interfaces = await lanInterfaces(
+      await (listInterfaces?.call() ??
+          NetworkInterface.list(
+            type: InternetAddressType.IPv4,
+            includeLoopback: false,
+            includeLinkLocal: false,
+          )),
+      operatingSystem: operatingSystem,
     );
   } on Object {
     return null;
   }
 
   final List<String> candidates = <String>[];
+  final android = (operatingSystem ?? Platform.operatingSystem) == 'android';
   for (final NetworkInterface iface in interfaces) {
     final String name = iface.name.toLowerCase();
     final bool isVirtual =
@@ -55,6 +64,9 @@ Future<String?> pickLanAddress() async {
       if (!LanAddressGuard.allowsCleartext(ip)) continue;
       if (ip.startsWith('127.')) continue;
       if (ip.startsWith('169.254.')) continue;
+      // Native Android selection orders connected LAN interfaces by the
+      // active network. Never compare a cellular private IP with a Wi-Fi IP.
+      if (android) return ip;
       // 前缀即排序权重：0 最优，1 次优，2 兜底。
       final String key = isVirtual
           ? '2$ip'

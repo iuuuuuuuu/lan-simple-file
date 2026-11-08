@@ -9,6 +9,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/widgets/drop_share_overlay.dart';
@@ -35,19 +38,16 @@ final class RecordingHandler implements DropShareHandler {
   }
 }
 
-Widget wrapOverlay(
-  Widget child, {
-  Brightness brightness = Brightness.light,
-}) =>
+Widget wrapOverlay(Widget child, {Brightness brightness = Brightness.light}) =>
     MaterialApp(
+      builder: (context, child) => AppMiuixTheme(child: child!),
       theme: AppTheme.of(LanFilePalette.of(brightness)),
-      home: Scaffold(body: child),
+      home: AppScaffold(body: child),
     );
 
 void main() {
   group('enableDragDrop=false（模拟 Android）', () {
-    testWidgets('不渲染 DropTarget，无遮罩，create 绝不被调用',
-        (WidgetTester tester) async {
+    testWidgets('不渲染 DropTarget，无遮罩，create 绝不被调用', (WidgetTester tester) async {
       final RecordingHandler handler = RecordingHandler();
       await tester.pumpWidget(
         wrapOverlay(
@@ -162,10 +162,7 @@ void main() {
       // 失败项必须带**原因**而不只是路径：只记路径的话用户看到
       // 「1 个失败」无法判断是权限、越界还是文件不见了。
       expect(ServiceDropShareHandler.lastFailures, hasLength(1));
-      expect(
-        ServiceDropShareHandler.lastFailures.single.path,
-        'D:/bad.txt',
-      );
+      expect(ServiceDropShareHandler.lastFailures.single.path, 'D:/bad.txt');
       expect(
         ServiceDropShareHandler.lastFailures.single.message,
         contains('路径不可读'),
@@ -178,22 +175,24 @@ void main() {
       final ServiceDropShareHandler handler = ServiceDropShareHandler(
         create: (String path) async => throw StateError('全挂'),
       );
-      final int created =
-          await handler.createFromPaths(<String>['D:/x', 'D:/y']);
+      final int created = await handler.createFromPaths(<String>[
+        'D:/x',
+        'D:/y',
+      ]);
       expect(created, 0);
       expect(ServiceDropShareHandler.lastFailures, hasLength(2));
     });
 
     test('空路径列表返回 0', () async {
-      final ServiceDropShareHandler handler =
-          ServiceDropShareHandler(create: (String path) async {});
+      final ServiceDropShareHandler handler = ServiceDropShareHandler(
+        create: (String path) async {},
+      );
       expect(await handler.createFromPaths(const <String>[]), 0);
     });
   });
 
   group('onResult 回调', () {
-    testWidgets('handler 为 null 时一次性回调 0/N，不抛',
-        (WidgetTester tester) async {
+    testWidgets('handler 为 null 时一次性回调 0/N，不抛', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapOverlay(
           DropShareOverlay(
@@ -209,8 +208,9 @@ void main() {
   });
 
   group('主题 token', () {
-    testWidgets('遮罩用对应主题的 accent 与 surface（通过 token 断言）',
-        (WidgetTester tester) async {
+    testWidgets('遮罩用对应主题的 accent 与 surface（通过 token 断言）', (
+      WidgetTester tester,
+    ) async {
       for (final Brightness brightness in Brightness.values) {
         await tester.pumpWidget(
           wrapOverlay(
@@ -223,8 +223,8 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final LanFileTokens tokens =
-            Theme.of(tester.element(find.text('内容'))).extension<LanFileTokens>()!;
+        final LanFileTokens tokens = Theme.of(tester.element(find.text('内容')))
+            .extension<LanFileTokens>()!;
         expect(
           tokens.accent,
           brightness == Brightness.dark

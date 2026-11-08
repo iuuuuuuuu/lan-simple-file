@@ -8,6 +8,9 @@ library;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/core/contracts/types.dart';
@@ -77,6 +80,8 @@ SettingsSnapshot snapshotOf({
   int rejectedFromSelf = 0,
   int rejectedUnknownPeerId = 0,
   List<String> recentReasons = const <String>[],
+  int transportErrors = 0,
+  List<String> transportReasons = const [],
 }) => SettingsSnapshot(
   nickname: nickname,
   peerId: peerId,
@@ -89,13 +94,16 @@ SettingsSnapshot snapshotOf({
   rejectedFromSelf: rejectedFromSelf,
   rejectedUnknownPeerId: rejectedUnknownPeerId,
   recentReasons: recentReasons,
+  transportErrors: transportErrors,
+  transportReasons: transportReasons,
 );
 
 /// 用指定亮度包装设置页。
 Widget wrap(Widget child, {Brightness brightness = Brightness.light}) {
   return MaterialApp(
+    builder: (context, child) => AppMiuixTheme(child: child!),
     theme: AppTheme.of(LanFilePalette.of(brightness)),
-    home: Scaffold(body: child),
+    home: AppScaffold(body: child),
   );
 }
 
@@ -163,20 +171,20 @@ void main() {
       final source = FakeSettingsSource(snapshotOf(nickname: '原昵称'));
       await tester.pumpWidget(wrap(SettingsPage(source: source)));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('nickname-field')), '新中文名字');
+      await tester.enterText(
+        find.byKey(const ValueKey('nickname-field')),
+        '新中文名字',
+      );
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       expect(source.savedNames, isEmpty);
       expect(find.text('原昵称'), findsOneWidget);
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('nickname-field')),
-          matching: find.byType(TextField),
-        ),
+      final field = tester.widget<AppTextField>(
+        find.byKey(const ValueKey('nickname-field')),
       );
       field.controller!.value = const TextEditingValue(
         text: '中文 名字',
@@ -184,7 +192,7 @@ void main() {
       );
       field.onSubmitted!('中文 名字');
       await tester.pump();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(AppDialog), findsOneWidget);
       expect(source.savedNames, isEmpty);
       field.controller!.value = field.controller!.value.copyWith(
         composing: TextRange.empty,
@@ -193,7 +201,7 @@ void main() {
       field.onSubmitted!('中文 名字');
       await tester.pumpAndSettle();
       expect(source.savedNames, ['中文 名字']);
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(AppDialog), findsNothing);
       expect(find.byKey(const ValueKey('app-toast')), findsOneWidget);
     });
 
@@ -205,9 +213,12 @@ void main() {
       await tester.pumpWidget(wrap(SettingsPage(source: source)));
       await tester.pumpAndSettle();
       final before = tester.getTopLeft(find.text('本机信息'));
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('nickname-field')), '小明');
+      await tester.enterText(
+        find.byKey(const ValueKey('nickname-field')),
+        '小明',
+      );
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(find.text('本机信息')), before);
@@ -240,19 +251,19 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点编辑按钮 -> 出现输入框。
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(AppDialog), findsOneWidget);
+      expect(find.byType(AppTextField), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField), '小明');
+      await tester.enterText(find.byType(AppTextField), '小明');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(source.savedNames, <String>['小明']);
       expect(find.text('小明'), findsOneWidget);
       expect(find.text('昵称已保存'), findsOneWidget);
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(AppDialog), findsNothing);
       expect(find.byKey(const ValueKey('app-toast')), findsOneWidget);
       expect(
         find.descendant(
@@ -268,9 +279,9 @@ void main() {
       await tester.pumpWidget(wrap(SettingsPage(source: source)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '   ');
+      await tester.enterText(find.byType(AppTextField), '   ');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -284,9 +295,9 @@ void main() {
       await tester.pumpWidget(wrap(SettingsPage(source: source)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '小明');
+      await tester.enterText(find.byType(AppTextField), '小明');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -383,13 +394,28 @@ void main() {
       expect(find.text('· 畸形包: 空载荷'), findsOneWidget);
     });
 
-    testWidgets('没有丢弃时说明通道干净', (WidgetTester tester) async {
+    testWidgets('没有丢弃时显示没有丢弃记录', (WidgetTester tester) async {
       final FakeSettingsSource source = FakeSettingsSource(snapshotOf());
       await tester.pumpWidget(wrap(SettingsPage(source: source)));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('没有丢弃记录'), findsOneWidget);
       expect(find.text('最近丢弃原因'), findsNothing);
+    });
+
+    testWidgets('通道异常单独显示，不伪装成畸形包或通道正常', (tester) async {
+      final source = FakeSettingsSource(
+        snapshotOf(
+          transportErrors: 4,
+          transportReasons: ['通道错误: Operation not permitted'],
+        ),
+      );
+      await tester.pumpWidget(wrap(SettingsPage(source: source)));
+      await tester.pumpAndSettle();
+      expect(find.text('发现通道错误'), findsOneWidget);
+      expect(find.textContaining('Operation not permitted'), findsOneWidget);
+      expect(find.text('最近丢弃原因'), findsNothing);
+      expect(find.textContaining('通道干净'), findsNothing);
     });
 
     testWidgets('零邻居且有丢包时给出排障提示', (WidgetTester tester) async {
@@ -450,7 +476,7 @@ void main() {
 
         final LanFileTokens expected = LanFilePalette.of(brightness);
         final LanFileTokens actual = Theme.of(
-          tester.element(find.byType(Scaffold)),
+          tester.element(find.byType(AppScaffold)),
         ).extension<LanFileTokens>()!;
         expect(actual.bg, expected.bg);
         expect(actual.surface, expected.surface);
@@ -490,14 +516,15 @@ void main() {
       await tester.pumpWidget(wrap(const SettingRow(label: '只读行', value: '值')));
       await tester.pumpAndSettle();
       expect(find.text('只读行'), findsOneWidget);
-      // 不可点 = 行内没有 GestureDetector（Material 自身会注入 MouseRegion，不能拿它判）。
-      expect(
+      final row = tester.widget<MiuixBasicComponent>(
         find.descendant(
           of: find.byType(SettingRow),
-          matching: find.byType(GestureDetector),
+          matching: find.byType(MiuixBasicComponent),
         ),
-        findsNothing,
       );
+      expect(row.onClick, isNull);
+      await tester.tap(find.text('只读行'));
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -536,9 +563,9 @@ void main() {
       // 初始昵称来自注入的登录账户名。
       expect(find.text('yg_account'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('修改昵称'));
+      await tester.tap(findAppTooltip('修改昵称'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '小明');
+      await tester.enterText(find.byType(AppTextField), '小明');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 

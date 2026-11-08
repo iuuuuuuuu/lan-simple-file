@@ -12,6 +12,7 @@ import '../contracts/constants.dart';
 import '../contracts/errors.dart';
 import '../contracts/file_ref.dart';
 import '../contracts/types.dart';
+import 'directory_order.dart';
 import 'relative_path_codec.dart';
 
 /// 单次读取块大小；100 GB 级文件也走这同一条分块路径。
@@ -82,8 +83,10 @@ final class LocalRef implements FileRef {
   @override
   bool get isDirectory {
     try {
-      return FileSystemEntity
-              .typeSync(toIoPath(_absolutePath), followLinks: true) ==
+      return FileSystemEntity.typeSync(
+            toIoPath(_absolutePath),
+            followLinks: true,
+          ) ==
           FileSystemEntityType.directory;
     } catch (_) {
       // 类型探测失败（不存在、权限不足、路径非法）一律当作不是目录。
@@ -168,15 +171,19 @@ final class LocalRef implements FileRef {
       );
     }
     final List<_Candidate> candidates = _collectChildren();
-    // 契约要求「按 name 排序后稳定分页」。字符串比较基于 UTF-16 码元，
-    // 桌面与安卓完全一致，因此游标跨端可复现。
-    candidates.sort((_Candidate a, _Candidate b) => a.name.compareTo(b.name));
+    candidates.sort(
+      (a, b) =>
+          compareDirectoryKeys(a.key, a.isDirectory, b.key, b.isDirectory),
+    );
 
     int begin = 0;
     if (cursor != null && cursor.isNotEmpty) {
-      // 游标是上一页最后一条的 itemKey；键不大于它的一律跳过。
       while (begin < candidates.length &&
-          candidates[begin].key.compareTo(cursor) <= 0) {
+          !isAfterDirectoryCursor(
+            candidates[begin].key,
+            candidates[begin].isDirectory,
+            cursor,
+          )) {
         begin++;
       }
     }
@@ -188,7 +195,10 @@ final class LocalRef implements FileRef {
     ];
     // 只有真还有下一页时才给游标，避免调用方多打一次空请求。
     final String? nextCursor = end < candidates.length && end > begin
-        ? candidates[end - 1].key
+        ? directoryCursor(
+            candidates[end - 1].key,
+            candidates[end - 1].isDirectory,
+          )
         : null;
     return FileEntryPage(entries: entries, nextCursor: nextCursor);
   }
@@ -338,9 +348,7 @@ final class LocalRef implements FileRef {
       } on FileSystemException {
         continue;
       }
-      result.add(
-        _Candidate(name: name, key: key, isDirectory: isDir),
-      );
+      result.add(_Candidate(name: name, key: key, isDirectory: isDir));
     }
     return result;
   }
@@ -390,9 +398,5 @@ LanFileException _mapIoError(FileSystemException e, String what) {
     default:
       mapped = LanFileErrorCode.io;
   }
-  return LanFileException(
-    mapped,
-    '$what：${e.path}（${e.message}）',
-    cause: e,
-  );
+  return LanFileException(mapped, '$what：${e.path}（${e.message}）', cause: e);
 }

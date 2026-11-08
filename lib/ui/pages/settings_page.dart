@@ -15,11 +15,16 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../widgets/app_controls.dart';
+
 import '../widgets/device_id_label.dart';
 
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../../app/assembly.dart';
+import '../../app/network_diagnostics.dart';
+import '../../core/discovery/announce_service_impl.dart';
+import '../widgets/network_diagnostics_setting.dart';
 import '../../app/branding/app_logo.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/widgets/identicon.dart';
@@ -52,7 +57,10 @@ const int kNicknameMaxLength = 64;
 const String kAppName = '局域网简易文件';
 
 /// 版本号（M0–M7 全部落地）。
-const String kAppVersion = '0.1.0-beta.5';
+const String kAppVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: '0.1.0-beta.6',
+);
 
 /// 许可标识。
 const String kAppLicense = 'GPL-3.0-only';
@@ -76,6 +84,8 @@ final class SettingsSnapshot {
     required this.rejectedFromSelf,
     required this.rejectedUnknownPeerId,
     required this.recentReasons,
+    this.transportErrors = 0,
+    this.transportReasons = const [],
   });
 
   /// 当前昵称（已保存值，没有则回落登录账户名）。
@@ -110,6 +120,8 @@ final class SettingsSnapshot {
 
   /// 最近若干条丢弃原因。
   final List<String> recentReasons;
+  final int transportErrors;
+  final List<String> transportReasons;
 
   /// 是否已降级为只发不收。
   bool get isSendOnly => degradedReason != null && degradedReason!.isNotEmpty;
@@ -131,6 +143,8 @@ final class SettingsSnapshot {
     rejectedFromSelf: rejectedFromSelf,
     rejectedUnknownPeerId: rejectedUnknownPeerId,
     recentReasons: recentReasons,
+    transportErrors: transportErrors,
+    transportReasons: transportReasons,
   );
 
   /// 是否一条邻居都看不到，且确实在丢包——这正是需要提示用户的场景。
@@ -281,6 +295,12 @@ final class ServiceSettingsSource implements SettingsSource {
       rejectedFromSelf: counter.fromSelf,
       rejectedUnknownPeerId: counter.unknownPeerId,
       recentReasons: counter.recentReasons,
+      transportErrors: counter is MutableRejectedCounter
+          ? counter.transportErrors
+          : 0,
+      transportReasons: counter is MutableRejectedCounter
+          ? counter.transportReasons
+          : const [],
     );
   }
 
@@ -427,7 +447,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_busy || _choosingNickname || snapshot == null) return;
     setState(() => _choosingNickname = true);
     try {
-      final name = await showDialog<String>(
+      final name = await showAppDialog<String>(
         context: context,
         builder: (_) => EditNameDialog(
           title: '修改昵称',
@@ -580,7 +600,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
     if (snapshot == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: MiuixCircularProgressIndicator());
     }
 
     return Column(
@@ -638,35 +658,36 @@ class _SettingsPageState extends State<SettingsPage> {
                             trailing: ValueListenableBuilder<CloseAction>(
                               valueListenable: closeBehavior,
                               builder: (context, action, _) =>
-                                  DropdownButton<CloseAction>(
-                                    value: action,
-                                    items: [
-                                      for (final value in CloseAction.values)
-                                        DropdownMenuItem(
-                                          value: value,
-                                          child: Text(value.label),
-                                        ),
-                                    ],
-                                    onChanged: _busy
-                                        ? null
-                                        : (value) async {
-                                            if (value == null) return;
-                                            try {
-                                              await closeBehavior.setAction(
-                                                value,
-                                              );
-                                              if (mounted) {
-                                                _notify('关闭行为已保存');
-                                              }
-                                            } on Object catch (error) {
-                                              if (mounted) {
-                                                _notify(
-                                                  '保存失败：$error',
-                                                  isError: true,
+                                  MiuixOverlayDropdownMenu(
+                                    title: action.label,
+                                    enabled: !_busy,
+                                    insideMargin: const EdgeInsets.all(8),
+                                    entry: MiuixDropdownEntry(
+                                      items: [
+                                        for (final value in CloseAction.values)
+                                          MiuixDropdownItem(
+                                            text: value.label,
+                                            selected: value == action,
+                                            onClick: () async {
+                                              try {
+                                                await closeBehavior.setAction(
+                                                  value,
                                                 );
+                                                if (mounted) {
+                                                  _notify('关闭行为已保存');
+                                                }
+                                              } on Object catch (error) {
+                                                if (mounted) {
+                                                  _notify(
+                                                    '保存失败：$error',
+                                                    isError: true,
+                                                  );
+                                                }
                                               }
-                                            }
-                                          },
+                                            },
+                                          ),
+                                      ],
+                                    ),
                                   ),
                             ),
                           ),
@@ -699,6 +720,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     SettingGroup(
                       title: '网络',
                       children: <Widget>[
+                        if (snapshot.transportErrors > 0)
+                          SettingRow(
+                            label: '发现通道错误',
+                            value: snapshot.transportErrors.toString(),
+                            subtitle: snapshot.transportReasons.reversed
+                                .take(3)
+                                .join('\n'),
+                          ),
                         if (widget.services?.localDomain != null)
                           StreamBuilder<void>(
                             stream: widget.services!.localDomain!.changes,
@@ -774,6 +803,13 @@ class _SettingsPageState extends State<SettingsPage> {
                       onRevokeAll: _revokeAll,
                     ),
                     const SizedBox(height: kSettingGroupGap),
+                    if (NetworkDiagnostics.active != null) ...[
+                      const SettingGroup(
+                        title: '帮助与诊断',
+                        children: [NetworkDiagnosticsEntry()],
+                      ),
+                      const SizedBox(height: kSettingGroupGap),
+                    ],
                     const SettingGroup(
                       title: '关于',
                       children: <Widget>[
@@ -809,10 +845,10 @@ class _LogoOption extends StatelessWidget {
     final tokens = Theme.of(context).extension<LanFileTokens>()!;
     return Padding(
       padding: const EdgeInsets.all(4),
-      child: InkWell(
+      child: MiuixPressable(
         key: ValueKey('logo-option-${logo.name}'),
         borderRadius: BorderRadius.circular(12),
-        onTap: controller == null
+        onPressed: controller == null
             ? null
             : () async {
                 try {
@@ -823,12 +859,13 @@ class _LogoOption extends StatelessWidget {
                   }
                 }
               },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          decoration: BoxDecoration(
-            color: selected ? tokens.accentSoft : tokens.bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? tokens.accent : tokens.line),
+        child: MiuixCard(
+          insideMargin: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          colors: MiuixCardColors(
+            color: selected
+                ? MiuixTheme.of(context).colors.secondaryContainer
+                : tokens.surface,
+            contentColor: selected ? tokens.accent : tokens.fg,
           ),
           child: Column(
             children: [
@@ -885,13 +922,8 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
     final SettingsSnapshot s = snapshot;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        borderRadius: BorderRadius.circular(LanFileMetrics.radiusCard),
-        border: Border.all(color: tokens.line),
-      ),
+    return MiuixCard(
+      insideMargin: const EdgeInsets.all(16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
@@ -899,11 +931,11 @@ class _ProfileCard extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Tooltip(
+              AppTooltip(
                 message: '修改头像',
-                child: InkWell(
+                child: MiuixPressable(
                   key: const ValueKey<String>('change-avatar'),
-                  onTap: busy ? null : onChangeAvatar,
+                  onPressed: busy ? null : onChangeAvatar,
                   borderRadius: BorderRadius.circular(
                     LanFileMetrics.radiusCard,
                   ),
@@ -914,15 +946,25 @@ class _ProfileCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (onChangeAvatar != null)
-                TextButton(
-                  onPressed: busy ? null : onChangeAvatar,
-                  child: const Text('修改头像'),
-                ),
-              if (onResetAvatar != null)
-                TextButton(
-                  onPressed: busy ? null : onResetAvatar,
-                  child: const Text('恢复默认'),
+              if (onChangeAvatar != null || onResetAvatar != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onChangeAvatar != null)
+                      AppIconButton(
+                        key: const ValueKey('edit-avatar-button'),
+                        tooltip: '修改头像',
+                        onPressed: busy ? null : onChangeAvatar,
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      ),
+                    if (onResetAvatar != null)
+                      AppIconButton(
+                        key: const ValueKey('reset-avatar-button'),
+                        tooltip: '恢复默认头像',
+                        onPressed: busy ? null : onResetAvatar,
+                        icon: const Icon(Icons.restart_alt, size: 18),
+                      ),
+                  ],
                 ),
             ],
           ),
@@ -948,7 +990,7 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          IconButton(
+          AppIconButton(
             tooltip: '修改昵称',
             icon: Icon(Icons.edit_outlined, size: 18, color: tokens.fgDim),
             onPressed: busy ? null : onEditNickname,
@@ -979,7 +1021,7 @@ class _SecurityGroup extends StatelessWidget {
     final SettingsSnapshot s = snapshot;
     final int total = s.totalRejected;
     final String dropSubtitle = total == 0
-        ? '没有丢弃记录：公告通道干净'
+        ? '没有丢弃记录'
         : '验签失败 ${s.rejectedBadSignature} · 畸形包 ${s.rejectedMalformed} '
               '· 非法 peerId ${s.rejectedUnknownPeerId}';
     final String revokeSubtitle = revokeAvailable
@@ -1075,21 +1117,10 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: warn ? tokens.accent.withValues(alpha: 0.12) : tokens.bg,
-        borderRadius: BorderRadius.circular(LanFileMetrics.radiusPill),
-        border: Border.all(color: warn ? tokens.accent : tokens.line),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w500,
-          color: warn ? tokens.accent : tokens.fgDim,
-        ),
-      ),
+    return MiuixBadge(
+      containerColor: warn ? tokens.accent.withValues(alpha: .12) : tokens.bg,
+      contentColor: warn ? tokens.accent : tokens.fgDim,
+      child: Text(text),
     );
   }
 }
@@ -1102,15 +1133,9 @@ class _DangerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LanFileTokens tokens = Theme.of(context).extension<LanFileTokens>()!;
-    return OutlinedButton(
+    return AppButton(
       onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        side: BorderSide(color: tokens.accent),
-        foregroundColor: tokens.accent,
-      ),
+
       child: const Text('失效', style: TextStyle(fontSize: 12)),
     );
   }

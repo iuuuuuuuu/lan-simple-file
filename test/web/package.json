@@ -1,0 +1,6 @@
+{
+  "name": "lan-simple-file-web-tests",
+  "private": true,
+  "scripts": { "test": "node --test share_navigation.test.cjs" },
+  "devDependencies": { "playwright": "1.56.1" }
+}

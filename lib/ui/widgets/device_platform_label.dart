@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
+
 import '../../app/theme/tokens.dart';
 import '../../core/platform/device_platform.dart';
 
@@ -19,7 +21,7 @@ class DevicePlatformLabel extends StatelessWidget {
       'ios' => Icons.phone_iphone,
       _ => Icons.computer,
     };
-    return Tooltip(
+    return AppTooltip(
       message: platformLabel(os),
       child: Row(
         mainAxisSize: MainAxisSize.min,

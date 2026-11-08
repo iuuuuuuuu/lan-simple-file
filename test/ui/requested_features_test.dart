@@ -6,6 +6,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/widgets/identicon.dart';
 import 'package:lan_simple_file/core/contacts/peer_groups.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
@@ -115,7 +118,11 @@ void main() {
       find.byType(PeerAvatar),
     );
     expect(avatar.avatarBytes, orderedEquals(png));
-    await tester.tap(find.text('恢复默认'));
+    final edit = find.byKey(const ValueKey('edit-avatar-button'));
+    final reset = find.byKey(const ValueKey('reset-avatar-button'));
+    expect(tester.getSize(edit).width, lessThanOrEqualTo(48));
+    expect(tester.getSize(reset).width, lessThanOrEqualTo(48));
+    await tester.tap(reset);
     await tester.pumpAndSettle();
     expect(saved.last, isNull);
     expect(
@@ -157,8 +164,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('陌生人 (1)'), findsOneWidget);
     expect(find.text('重新搜索'), findsNothing);
-    expect(find.byTooltip('刷新'), findsNothing);
-    await tester.tap(find.byTooltip('新建分组'));
+    expect(findAppTooltip('刷新'), findsNothing);
+    await tester.tap(findAppTooltip('新建分组'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey<String>('peer-group-name-field')),
@@ -166,7 +173,7 @@ void main() {
     );
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('移动到分组'));
+    await tester.tap(findAppTooltip('移动到分组'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('同事'));
     await tester.pumpAndSettle();
@@ -177,7 +184,7 @@ void main() {
     await tester.pumpWidget(page(const ValueKey<String>('reopened')));
     await tester.pumpAndSettle();
     expect(find.text('同事 (1)'), findsOneWidget);
-    await tester.tap(find.byTooltip('管理分组'));
+    await tester.tap(findAppTooltip('管理分组'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('重命名'));
     await tester.pumpAndSettle();
@@ -188,7 +195,7 @@ void main() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(find.text('朋友 (1)'), findsOneWidget);
-    await tester.tap(find.byTooltip('管理分组'));
+    await tester.tap(findAppTooltip('管理分组'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('删除分组'));
     await tester.pumpAndSettle();

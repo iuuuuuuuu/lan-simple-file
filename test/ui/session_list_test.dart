@@ -7,6 +7,9 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/miuix_test_support.dart';
+
 import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 import 'package:lan_simple_file/ui/shell/session_list.dart';
@@ -14,8 +17,9 @@ import 'package:lan_simple_file/ui/widgets/avatar_badge.dart';
 
 Widget wrapList(Widget child, {Brightness brightness = Brightness.light}) =>
     MaterialApp(
+      builder: (context, child) => AppMiuixTheme(child: child!),
       theme: AppTheme.of(LanFilePalette.of(brightness)),
-      home: Scaffold(body: child),
+      home: AppScaffold(body: child),
     );
 
 SessionList buildList({
@@ -145,7 +149,7 @@ void main() {
         );
         expect(find.text('p_devicefirst01'), findsNothing);
       }
-      await tester.tap(find.byTooltip('复制设备 ID'));
+      await tester.tap(findAppTooltip('复制设备 ID'));
       await tester.pumpAndSettle();
       expect(copied, 'p_devicesecond2');
       expect(tester.takeException(), isNull);
