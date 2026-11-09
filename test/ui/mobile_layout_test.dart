@@ -19,8 +19,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
     expect(find.byKey(const ValueKey('app-navigation')), findsOneWidget);
-    expect(find.byType(MiuixFloatingNavigationBar), findsOneWidget);
-    expect(find.byType(MiuixFloatingNavigationBarItem), findsNWidgets(4));
+    expect(find.byType(MiuixGlassNavigationBar), findsOneWidget);
+    expect(find.byType(MiuixFloatingNavigationBar), findsNothing);
     expect(find.byKey(const ValueKey('mobile-upload')), findsNothing);
     expect(tester.getRect(find.byKey(const ValueKey('shell-list'))).width, 390);
     expect(

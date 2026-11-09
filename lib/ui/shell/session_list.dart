@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
+import '../widgets/floating_navigation.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../core/contacts/peer_groups.dart';
@@ -188,7 +189,12 @@ class _SessionListState extends State<SessionList> {
       ...groups.names,
     };
     return ListView(
-      padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
+      padding: EdgeInsets.fromLTRB(
+        6,
+        0,
+        6,
+        12 + FloatingNavigationInsets.bottomOf(context),
+      ),
       children: [
         for (final entry in buckets.entries)
           if (_query.trim().isEmpty || entry.value.isNotEmpty) ...[
@@ -361,9 +367,11 @@ class _SessionListState extends State<SessionList> {
                     searching: _query.trim().isNotEmpty,
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+                    padding: EdgeInsets.fromLTRB(
+                      6,
+                      2,
+                      6,
+                      12 + FloatingNavigationInsets.bottomOf(context),
                     ),
                     itemCount: rows.length,
                     itemBuilder: (BuildContext context, int index) {

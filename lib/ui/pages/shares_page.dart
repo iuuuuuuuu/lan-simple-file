@@ -28,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
+import '../widgets/floating_navigation.dart';
 
 import 'package:flutter/services.dart';
 
@@ -992,7 +993,13 @@ class _SharesPageState extends State<SharesPage> {
                                   12,
                                   4,
                                   12,
-                                  widget.onCreateShare == null ? 12 : 88,
+                                  FloatingNavigationInsets.bottomOf(context) +
+                                      (widget.onCreateShare == null ||
+                                              MediaQuery.sizeOf(context)
+                                                      .width >=
+                                                  600
+                                          ? 12
+                                          : 88),
                                 ),
                                 itemExtent:
                                     (_organization.names.isEmpty ? 112 : 136) *
@@ -1044,7 +1051,11 @@ class _SharesPageState extends State<SharesPage> {
         if (widget.onCreateShare != null)
           Positioned(
             right: 16,
-            bottom: 16,
+            bottom:
+                16 +
+                (MediaQuery.sizeOf(context).width < 600
+                    ? FloatingNavigationInsets.bottomOf(context)
+                    : MediaQuery.viewPaddingOf(context).bottom),
             child: AppTooltip(
               message: '新建分享',
               child: MiuixFloatingActionButton(

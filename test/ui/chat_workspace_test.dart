@@ -118,6 +118,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ChatPane), findsOneWidget);
     expect(
+      tester.getRect(find.byKey(const ValueKey('chat-send'))).bottom,
+      lessThan(
+        tester.getRect(find.byKey(const ValueKey('app-navigation'))).top,
+      ),
+    );
+    expect(
       tester.getRect(find.byKey(const ValueKey('shell-list'))).right,
       lessThan(tester.getRect(find.byType(ChatPane)).left),
     );

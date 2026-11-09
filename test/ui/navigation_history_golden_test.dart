@@ -43,7 +43,8 @@ void main() {
           theme: withCjkFont(AppTheme.light),
           builder: (context, child) => AppMiuixTheme(child: child!),
           home: AppScaffold(
-            body: body,
+            extendBody: true,
+            body: FloatingNavigationInsets(bottom: 68, child: body),
             bottomNavigationBar: FloatingNavigation(
               selected: ShellSection.transfers,
               unread: 101,

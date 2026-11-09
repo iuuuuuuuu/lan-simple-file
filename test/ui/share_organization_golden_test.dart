@@ -52,16 +52,21 @@ void main() {
             ),
           ),
           home: AppScaffold(
+            extendBody: true,
             bottomNavigationBar: FloatingNavigation(
               selected: ShellSection.shares,
               onSelect: (_) {},
             ),
-            body: SharesPage(
-              source: source,
-              onCreateShare: () async {},
-              organizationSource: groups,
-              homeLink: () async =>
-                  Uri.parse('http://haohaochifan.p-aaaaaaaaaaaaa.local:47778/'),
+            body: FloatingNavigationInsets(
+              bottom: 68,
+              child: SharesPage(
+                source: source,
+                onCreateShare: () async {},
+                organizationSource: groups,
+                homeLink: () async => Uri.parse(
+                  'http://haohaochifan.p-aaaaaaaaaaaaa.local:47778/',
+                ),
+              ),
             ),
           ),
         ),

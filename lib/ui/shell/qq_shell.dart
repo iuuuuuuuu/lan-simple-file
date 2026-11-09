@@ -268,6 +268,7 @@ class QqShell extends StatefulWidget {
 }
 
 class _QqShellState extends State<QqShell> {
+  final _navigationBackdrop = MiuixLayerBackdrop();
   late ShellSection _section = widget.initialSection == ShellSection.groups
       ? ShellSection.nearby
       : widget.initialSection;
@@ -483,6 +484,7 @@ class _QqShellState extends State<QqShell> {
 
   @override
   void dispose() {
+    _navigationBackdrop.dispose();
     _profileSubscription?.cancel();
     _peerSubscription?.cancel();
     _threadSubscription?.cancel();
@@ -595,6 +597,15 @@ class _QqShellState extends State<QqShell> {
         LanFilePalette.of(Theme.of(context).brightness);
     final double width = MediaQuery.sizeOf(context).width;
     final mobile = width < 600;
+    final inConversation =
+        _sectionWantsList(_section) && _selectedRowId != null;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final navigationVisible = (!mobile || !inConversation) && !keyboardVisible;
+    final navigationClearance = navigationVisible
+        ? FloatingNavigation.clearance(context)
+        : keyboardVisible
+        ? 0.0
+        : MediaQuery.viewPaddingOf(context).bottom;
 
     // 聊天入口保留联系人与群聊分组；分享、传输和设置铺满内容区。
     // 手机先展示列表，选择会话后进入聊天，顶部提供返回列表的按钮。
@@ -605,7 +616,12 @@ class _QqShellState extends State<QqShell> {
 
     final Widget list = _buildList();
 
-    final Widget content = _buildContent();
+    final Widget content = Padding(
+      padding: EdgeInsets.only(
+        bottom: inConversation ? navigationClearance : 0,
+      ),
+      child: _buildContent(),
+    );
 
     // 桌面列表与聊天并排，手机按当前选择显示其中一栏。
     final Widget body = mobile
@@ -666,10 +682,6 @@ class _QqShellState extends State<QqShell> {
       child: body,
     );
 
-    final inConversation = needsList && _selectedRowId != null;
-    final navigationVisible =
-        (!mobile || !inConversation) &&
-        MediaQuery.viewInsetsOf(context).bottom == 0;
     final shell = PopScope(
       canPop: !mobile || !inConversation,
       onPopInvokedWithResult: (didPop, result) {
@@ -682,43 +694,50 @@ class _QqShellState extends State<QqShell> {
       },
       child: AppScaffold(
         backgroundColor: tokens.bg,
+        extendBody: true,
         bottomNavigationBar: navigationVisible
             ? FloatingNavigation(
+                backdrop: _navigationBackdrop,
                 selected: _section,
                 onSelect: _selectSection,
                 unread: _chatUnread,
               )
             : null,
-        body: Padding(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: <Widget>[
-              if (!mobile)
-                _TopBar(
-                  title: _section.label,
-                  trailing: AppIconButton(
-                    key: const ValueKey('shell-self-avatar'),
-                    tooltip: '本机设置',
-                    onPressed: _openSettings,
-                    padding: const EdgeInsets.all(4),
-                    icon: AvatarBadge(
-                      peerId:
-                          widget.services?.identity.peerId.value ??
-                          'p_localdevice00',
-                      avatarBytes: widget.services?.avatars?.selfBytes,
-                      size: 28,
+        body: FloatingNavigationInsets(
+          bottom: navigationClearance,
+          child: MiuixLayerBackdropCapture(
+            backdrop: _navigationBackdrop,
+            // The blurred background needs no high-DPI full-window snapshot.
+            pixelRatio: 1,
+            child: Column(
+              children: <Widget>[
+                if (!mobile)
+                  _TopBar(
+                    title: _section.label,
+                    trailing: AppIconButton(
+                      key: const ValueKey('shell-self-avatar'),
+                      tooltip: '本机设置',
+                      onPressed: _openSettings,
+                      padding: const EdgeInsets.all(4),
+                      icon: AvatarBadge(
+                        peerId:
+                            widget.services?.identity.peerId.value ??
+                            'p_localdevice00',
+                        avatarBytes: widget.services?.avatars?.selfBytes,
+                        size: 28,
+                      ),
                     ),
+                    onBack: needsList && width < 600 && _selectedRowId != null
+                        ? () => setState(() {
+                            _selectedRowId = null;
+                            _selectedSession = null;
+                          })
+                        : null,
                   ),
-                  onBack: needsList && width < 600 && _selectedRowId != null
-                      ? () => setState(() {
-                          _selectedRowId = null;
-                          _selectedSession = null;
-                        })
-                      : null,
-                ),
-              if (!mobile) AppDivider(height: 1, color: tokens.line),
-              Expanded(child: dropped),
-            ],
+                if (!mobile) AppDivider(height: 1, color: tokens.line),
+                Expanded(child: dropped),
+              ],
+            ),
           ),
         ),
       ),

@@ -67,7 +67,7 @@ Future<void> setViewport(WidgetTester tester, Size size) async {
 
 void main() {
   group('宽屏悬浮底栏', () {
-    testWidgets('桌面底栏与列表、会话同时存在，内容互不遮挡', (WidgetTester tester) async {
+    testWidgets('桌面玻璃底栏覆盖页面，列表与会话背景延伸到底部', (WidgetTester tester) async {
       await setViewport(tester, const Size(1280, 800));
       await tester.pumpWidget(
         wrapShell(QqShell(sessionSource: FakeSessionSource())),
@@ -87,8 +87,12 @@ void main() {
       final Rect content = tester.getRect(find.byKey(kShellContentKey));
       expect(list.left, 0);
       expect(list.right, lessThanOrEqualTo(content.left));
-      expect(content.bottom, lessThanOrEqualTo(navigation.top));
-      expect(find.byType(MiuixFloatingNavigationBarItem), findsNWidgets(4));
+      expect(content.bottom, 800);
+      expect(list.bottom, 800);
+      expect(navigation.bottom, 788);
+      expect(navigation.height, 56);
+      expect(find.byType(MiuixGlassNavigationBar), findsOneWidget);
+      expect(find.byType(MiuixFloatingNavigationBar), findsNothing);
     });
 
     testWidgets('底栏居中且紧凑，list 宽度落在 260-300px', (WidgetTester tester) async {

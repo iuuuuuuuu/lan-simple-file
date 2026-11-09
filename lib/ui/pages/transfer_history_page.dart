@@ -13,6 +13,7 @@ import '../../core/contracts/contracts.dart';
 import '../../core/platform/reveal_in_file_manager.dart';
 import '../../core/transfer/transfer_history.dart';
 import '../widgets/app_controls.dart';
+import '../widgets/floating_navigation.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/share_detail_panel.dart' show humanSize;
 
@@ -273,7 +274,10 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
                 : entries.isEmpty
                 ? Center(child: Text(query.isEmpty ? '暂无传输记录' : '没有匹配的记录'))
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.only(
+                      top: 8,
+                      bottom: 8 + FloatingNavigationInsets.bottomOf(context),
+                    ),
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
                       final entry = entries[index];

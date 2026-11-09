@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
+import '../widgets/floating_navigation.dart';
 
 import '../widgets/device_id_label.dart';
 
@@ -60,7 +61,7 @@ const String kAppName = '局域网简易文件';
 /// 版本号（M0–M7 全部落地）。
 const String kAppVersion = String.fromEnvironment(
   'APP_VERSION',
-  defaultValue: '0.1.0-beta.8',
+  defaultValue: '0.1.0-beta.9',
 );
 
 /// 许可标识。
@@ -608,7 +609,12 @@ class _SettingsPageState extends State<SettingsPage> {
       children: <Widget>[
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              24 + FloatingNavigationInsets.bottomOf(context),
+            ),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
