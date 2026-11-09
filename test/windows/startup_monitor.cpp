@@ -8,11 +8,22 @@
 
 namespace fs = std::filesystem;
 bool saw_visible = false;
+DWORD runner_pid = 0;
+bool runner_visible = false;
 
 bool IsRunner(HWND window) {
   wchar_t name[128]{};
   GetClassNameW(window, name, 128);
   return std::wstring(name) == L"FLUTTER_RUNNER_WIN32_WINDOW";
+}
+
+BOOL CALLBACK FindVisibleRunner(HWND window, LPARAM) {
+  DWORD pid = 0;
+  GetWindowThreadProcessId(window, &pid);
+  if (pid == runner_pid && IsRunner(window) && IsWindowVisible(window)) {
+    runner_visible = true;
+  }
+  return TRUE;
 }
 
 void CALLBACK VisibilityEvent(HWINEVENTHOOK, DWORD, HWND window, LONG object,
@@ -49,9 +60,13 @@ int wmain(int argc, wchar_t** argv) {
     return 5;
   }
   ResumeThread(process.hThread);
+  runner_pid = process.dwProcessId;
   const auto deadline = GetTickCount64() + 30000;
   bool checked = false;
   bool correct_visibility = false;
+  ULONGLONG close_requested = 0;
+  ULONGLONG close_hidden_ms = 0;
+  bool close_hidden = false;
   while (GetTickCount64() < deadline &&
          WaitForSingleObject(process.hProcess, 0) == WAIT_TIMEOUT) {
     MSG message;
@@ -64,6 +79,17 @@ int wmain(int argc, wchar_t** argv) {
       checked = true;
       std::ofstream(output / L"continue") << "continue";
     }
+    if (!close_requested && fs::exists(output / L"close-requested")) {
+      close_requested = GetTickCount64();
+    }
+    if (close_requested && !close_hidden) {
+      runner_visible = false;
+      EnumDesktopWindows(desktop, FindVisibleRunner, 0);
+      if (!runner_visible) {
+        close_hidden = true;
+        close_hidden_ms = GetTickCount64() - close_requested;
+      }
+    }
     Sleep(5);
   }
   DWORD code = 1;
@@ -72,14 +98,23 @@ int wmain(int argc, wchar_t** argv) {
     WaitForSingleObject(process.hProcess, 3000);
   }
   GetExitCodeProcess(process.hProcess, &code);
+  if (!close_requested && fs::exists(output / L"close-requested")) {
+    close_requested = GetTickCount64();
+  }
+  if (close_requested && !close_hidden && code == 0) {
+    close_hidden = true;
+    close_hidden_ms = GetTickCount64() - close_requested;
+  }
   UnhookWinEvent(hook);
   CloseHandle(process.hThread);
   CloseHandle(process.hProcess);
   const bool passed = code == 0 && checked && correct_visibility &&
+                      close_hidden && close_hidden_ms < 500 &&
                       fs::exists(output / L"passed") &&
                       !fs::exists(output / L"failed");
   std::cout << "exit=" << code << " checked=" << checked
-            << " initial_visibility_correct=" << correct_visibility << '\n';
+            << " initial_visibility_correct=" << correct_visibility
+            << " close_hidden_ms=" << close_hidden_ms << '\n';
   if (fs::exists(output / L"failed")) {
     std::ifstream error(output / L"failed");
     std::cout << error.rdbuf();

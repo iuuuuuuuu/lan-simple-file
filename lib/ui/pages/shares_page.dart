@@ -22,12 +22,13 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/assembly.dart';
@@ -42,6 +43,7 @@ import '../widgets/qr_panel.dart';
 import '../widgets/share_detail_panel.dart';
 import '../widgets/share_row.dart';
 import '../widgets/share_organization_dialog.dart';
+import '../widgets/share_drag_grid.dart';
 import '../widgets/share_picker_dialog.dart' show matchesShare;
 import '../widgets/edit_name_dialog.dart';
 import 'nearby_page.dart' show ServicesNotConnected;
@@ -250,6 +252,12 @@ class _SharesPageState extends State<SharesPage> {
   ShareOrganization _organization = const ShareOrganization();
   ShareOrganizationSource? _organizationSource;
   bool _editingOrganization = false;
+  bool _savingOrganization = false;
+  int _organizationRevision = 0;
+  final _groupStrip = GlobalKey();
+  final _groupStripContent = GlobalKey();
+  EdgeDraggingAutoScroller? _groupAutoScroller;
+  Offset? _groupDragPosition;
 
   StreamSubscription<void>? _domainChanges;
 
@@ -297,11 +305,15 @@ class _SharesPageState extends State<SharesPage> {
   }
 
   Future<List<ShareRecord>> _load() async {
+    final revision = _organizationRevision;
     final MySharesSource? source = _source;
     if (source == null) return const <ShareRecord>[];
     final shares = await source.listMine();
-    _organization =
+    final organization =
         await _organizationSource?.load() ?? const ShareOrganization();
+    if (revision == _organizationRevision && !_savingOrganization) {
+      _organization = organization;
+    }
     if (_group != null &&
         _group!.isNotEmpty &&
         !_organization.names.containsKey(_group)) {
@@ -329,8 +341,34 @@ class _SharesPageState extends State<SharesPage> {
 
   @override
   void dispose() {
+    _groupAutoScroller?.stopAutoScroll();
     _domainChanges?.cancel();
     super.dispose();
+  }
+
+  void _scrollGroupsDuringDrag(Offset pointer) {
+    _groupDragPosition = pointer;
+    final viewport =
+        _groupStrip.currentContext?.findRenderObject() as RenderBox?;
+    final content = _groupStripContent.currentContext;
+    if (viewport == null || content == null) return;
+    final local = viewport.globalToLocal(pointer);
+    if (local.dy < 0 || local.dy > viewport.size.height) {
+      _groupAutoScroller?.stopAutoScroll();
+      return;
+    }
+    _groupAutoScroller ??= EdgeDraggingAutoScroller(
+      Scrollable.of(content),
+      velocityScalar: 12,
+      onScrollViewScrolled: () {
+        if (mounted && _groupDragPosition != null) {
+          _scrollGroupsDuringDrag(_groupDragPosition!);
+        }
+      },
+    );
+    _groupAutoScroller!.startAutoScrollIfNecessary(
+      Rect.fromCenter(center: pointer, width: 64, height: 8),
+    );
   }
 
   /// 统一提示出口：浮层 Toast，不再占用页面顶部条。
@@ -350,7 +388,7 @@ class _SharesPageState extends State<SharesPage> {
 
   Future<void> _manageOrganization(List<ShareRecord> shares) async {
     final source = _organizationSource;
-    if (source == null || _editingOrganization) return;
+    if (source == null || _editingOrganization || _savingOrganization) return;
     setState(() => _editingOrganization = true);
     try {
       final saved = await showAppDialog<bool>(
@@ -367,6 +405,117 @@ class _SharesPageState extends State<SharesPage> {
     } finally {
       if (mounted) setState(() => _editingOrganization = false);
     }
+  }
+
+  Future<bool> _saveOrganization(ShareOrganization next) async {
+    final source = _organizationSource;
+    if (source == null || _savingOrganization || _editingOrganization) {
+      return false;
+    }
+    final previous = _organization;
+    setState(() {
+      _organizationRevision++;
+      _organization = next;
+      _savingOrganization = true;
+    });
+    try {
+      await source.save(next);
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _organization = previous);
+        _notify('保存分组与排序失败：$error', isError: true);
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _savingOrganization = false);
+    }
+  }
+
+  Future<void> _createGroup() async {
+    if (_savingOrganization || _editingOrganization) return;
+    final name = await showAppDialog<String>(
+      context: context,
+      builder: (_) => const EditNameDialog(
+        title: '新建分享分组',
+        label: '分组名称',
+        initialValue: '',
+        maxLength: 40,
+        fieldKey: ValueKey('share-group-name'),
+      ),
+    );
+    if (name == null || !mounted) return;
+    if (_organization.names.values.any(
+      (existing) => existing.toLowerCase() == name.toLowerCase(),
+    )) {
+      _notify('已存在同名分组', isError: true);
+      return;
+    }
+    final random = Random.secure();
+    final id =
+        'c_${List.generate(12, (_) => random.nextInt(16).toRadixString(16)).join()}';
+    await _saveOrganization(
+      _organization.copyWith(names: {..._organization.names, id: name}),
+    );
+  }
+
+  Widget _groupTarget(String? id, List<ShareRecord> shares) {
+    final name = id == null ? '全部' : _organization.names[id] ?? '未分组';
+    final count = shares
+        .where(
+          (share) => id == null || _organization.groupOf(share.id.value) == id,
+        )
+        .length;
+    return DragTarget<ShareDragData>(
+      key: ValueKey('share-group-target-${id ?? '*'}'),
+      onWillAcceptWithDetails: (details) =>
+          id != null &&
+          !_savingOrganization &&
+          !_editingOrganization &&
+          _organization.groupOf(details.data.id) != id,
+      onAcceptWithDetails: (details) => unawaited(
+        _saveOrganization(_organization.move([details.data.id], id!)),
+      ),
+      builder: (context, candidates, rejected) => Semantics(
+        selected: _group == id,
+        child: MiuixButton(
+          minHeight: 36,
+          minWidth: 0,
+          insideMargin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          colors: _group == id || candidates.isNotEmpty
+              ? MiuixButtonDefaults.buttonColorsPrimary(context)
+              : null,
+          onPressed: _savingOrganization
+              ? null
+              : () => setState(() => _group = id),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (id != null) ...[
+                Icon(
+                  candidates.isEmpty
+                      ? LucideIcons.folder
+                      : LucideIcons.folderInput,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+              ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('$count', style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 复制网页链接：浏览器可直接打开并下载，是主要用途。
@@ -568,278 +717,328 @@ class _SharesPageState extends State<SharesPage> {
         Positioned.fill(
           child: FutureBuilder<List<ShareRecord>>(
             future: _future,
-            builder: (BuildContext context, AsyncSnapshot<List<ShareRecord>> snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                return const Center(child: MiuixCircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '加载分享失败：${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: tokens.fgDim),
-                    ),
-                  ),
-                );
-              }
-              final List<ShareRecord> shares =
-                  snapshot.data ?? const <ShareRecord>[];
-              final visibleShares = _organization.arrange(
-                shares.where((share) => matchesShare(share, _search)),
-                group: _group,
-              );
-              return Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-                    child: Row(
-                      children: <Widget>[
-                        Text(
-                          '我的分享',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: tokens.fg,
-                          ),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<ShareRecord>> snapshot,
+                ) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: MiuixCircularProgressIndicator(),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '加载分享失败：${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: tokens.fgDim),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '共 ${shares.length} 项',
-                          style: TextStyle(fontSize: 12, color: tokens.fgDim),
-                        ),
-                        const Spacer(),
-                        if (_organizationSource != null)
-                          AppIconButton(
-                            tooltip: '分组与排序',
-                            icon: const Icon(
-                              Icons.folder_copy_outlined,
-                              size: 18,
+                      ),
+                    );
+                  }
+                  final List<ShareRecord> shares =
+                      snapshot.data ?? const <ShareRecord>[];
+                  final visibleShares = _organization.arrange(
+                    shares.where((share) => matchesShare(share, _search)),
+                    group: _group,
+                  );
+                  return Column(
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                        child: Row(
+                          children: <Widget>[
+                            Text(
+                              '我的分享',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: tokens.fg,
+                              ),
                             ),
-                            onPressed: _editingOrganization
-                                ? null
-                                : () => _manageOrganization(shares),
-                          ),
-                        AppIconButton(
-                          tooltip: '刷新',
-                          icon: Icon(
-                            Icons.refresh,
-                            size: 18,
-                            color: tokens.fgDim,
-                          ),
-                          onPressed: _reload,
+                            const SizedBox(width: 8),
+                            Text(
+                              '共 ${shares.length} 项',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: tokens.fgDim,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (_organizationSource != null)
+                              AppIconButton(
+                                tooltip: '分组与排序',
+                                icon: const Icon(LucideIcons.folders, size: 18),
+                                onPressed:
+                                    _editingOrganization || _savingOrganization
+                                    ? null
+                                    : () => _manageOrganization(shares),
+                              ),
+                            AppIconButton(
+                              tooltip: '刷新',
+                              icon: Icon(
+                                LucideIcons.refreshCw,
+                                size: 18,
+                                color: tokens.fgDim,
+                              ),
+                              onPressed: _savingOrganization ? null : _reload,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  if (widget.services != null || widget.homeLink != null)
-                    FutureBuilder<Uri?>(
-                      future: _homeFuture,
-                      builder: (context, snapshot) {
-                        final uri = snapshot.data?.replace(
-                          queryParameters: _group == null
-                              ? null
-                              : {'group': _group!},
-                        );
-                        return Padding(
-                          key: const ValueKey('my-shares-home'),
-                          padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                      ),
+                      if (widget.services != null || widget.homeLink != null)
+                        FutureBuilder<Uri?>(
+                          future: _homeFuture,
+                          builder: (context, snapshot) {
+                            final uri = snapshot.data?.replace(
+                              queryParameters: _group == null
+                                  ? null
+                                  : {'group': _group!},
+                            );
+                            return Padding(
+                              key: const ValueKey('my-shares-home'),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    LucideIcons.globe,
+                                    size: 18,
+                                    color: tokens.accent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: SelectableText(
+                                      uri?.toString() ??
+                                          (snapshot.connectionState ==
+                                                  ConnectionState.waiting
+                                              ? '正在获取分享地址'
+                                              : widget
+                                                        .services
+                                                        ?.localDomain
+                                                        ?.error ??
+                                                    '局域网地址不可用'),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: uri == null
+                                            ? tokens.fgDim
+                                            : tokens.fg,
+                                      ),
+                                    ),
+                                  ),
+                                  AppIconButton(
+                                    tooltip: _group == null
+                                        ? '复制我的分享地址'
+                                        : '复制分组链接',
+                                    icon: const Icon(
+                                      LucideIcons.copy,
+                                      size: 18,
+                                    ),
+                                    onPressed: uri == null
+                                        ? null
+                                        : () => _copyHomeLink(uri),
+                                  ),
+                                  AppIconButton(
+                                    tooltip: _group == null
+                                        ? '我的分享二维码'
+                                        : '分组二维码',
+                                    icon: const Icon(
+                                      LucideIcons.qrCode,
+                                      size: 18,
+                                    ),
+                                    onPressed: uri == null
+                                        ? null
+                                        : () => showAppDialog<void>(
+                                            context: context,
+                                            builder: (context) => AppDialog(
+                                              title: Text(
+                                                _group == null
+                                                    ? '我的分享'
+                                                    : _organization
+                                                              .names[_group] ??
+                                                          '未分组',
+                                              ),
+                                              content: SizedBox(
+                                                width: 240,
+                                                child: QrPanel(
+                                                  linkText: uri.toString(),
+                                                  layout: QrPanelLayout.compact,
+                                                  minSize: 180,
+                                                  maxSize: 180,
+                                                ),
+                                              ),
+                                              actions: [
+                                                AppIconButton(
+                                                  tooltip: '关闭',
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .pop(),
+                                                  icon: const Icon(
+                                                    LucideIcons.x,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      if (_organizationSource != null ||
+                          _organization.names.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
                           child: Row(
                             children: [
-                              Icon(
-                                Symbols.public,
-                                size: 18,
-                                color: tokens.accent,
-                              ),
-                              const SizedBox(width: 8),
                               Expanded(
-                                child: SelectableText(
-                                  uri?.toString() ??
-                                      (snapshot.connectionState ==
-                                              ConnectionState.waiting
-                                          ? '正在获取分享地址'
-                                          : widget
-                                                    .services
-                                                    ?.localDomain
-                                                    ?.error ??
-                                                '局域网地址不可用'),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: uri == null
-                                        ? tokens.fgDim
-                                        : tokens.fg,
-                                  ),
-                                ),
-                              ),
-                              AppIconButton(
-                                tooltip: _group == null ? '复制我的分享地址' : '复制分组链接',
-                                icon: const Icon(
-                                  Symbols.content_copy,
-                                  size: 18,
-                                ),
-                                onPressed: uri == null
-                                    ? null
-                                    : () => _copyHomeLink(uri),
-                              ),
-                              AppIconButton(
-                                tooltip: _group == null ? '我的分享二维码' : '分组二维码',
-                                icon: const Icon(Symbols.qr_code_2, size: 18),
-                                onPressed: uri == null
-                                    ? null
-                                    : () => showAppDialog<void>(
-                                        context: context,
-                                        builder: (context) => AppDialog(
-                                          title: Text(
-                                            _group == null
-                                                ? '我的分享'
-                                                : _organization.names[_group] ??
-                                                      '未分组',
+                                child: SingleChildScrollView(
+                                  key: _groupStrip,
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    key: _groupStripContent,
+                                    children: [
+                                      for (final id in [
+                                        null,
+                                        ..._organization.groups,
+                                      ])
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
                                           ),
-                                          content: SizedBox(
-                                            width: 240,
-                                            child: QrPanel(
-                                              linkText: uri.toString(),
-                                              layout: QrPanelLayout.compact,
-                                              minSize: 180,
-                                              maxSize: 180,
-                                            ),
-                                          ),
-                                          actions: [
-                                            AppIconButton(
-                                              tooltip: '关闭',
-                                              onPressed: () =>
-                                                  Navigator.of(context).pop(),
-                                              icon: const Icon(Symbols.close),
-                                            ),
-                                          ],
+                                          child: _groupTarget(id, shares),
                                         ),
-                                      ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  if (_organization.names.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _group == null
-                                  ? '全部分组'
-                                  : _organization.names[_group] ?? '未分组',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          AppMenuButton<String>(
-                            tooltip: '筛选分享分组',
-                            icon: const Icon(Icons.filter_list),
-                            itemBuilder: (_) => [
-                              const AppMenuItem(value: '*', label: '全部分组'),
-                              for (final id in _organization.groups)
-                                AppMenuItem(
-                                  value: id,
-                                  label: _organization.names[id] ?? '未分组',
+                                    ],
+                                  ),
                                 ),
-                            ],
-                            onSelected: (id) =>
-                                setState(() => _group = id == '*' ? null : id),
-                          ),
-                        ],
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                    child: AppTextField(
-                      key: const ValueKey('my-shares-search'),
-                      onChanged: (text) => setState(() => _search = text),
-                      label: '搜索分享名称或文件位置',
-                      placeholder: true,
-                      leading: Icon(Icons.search),
-                    ),
-                  ),
-                  Expanded(
-                    child: shares.isEmpty
-                        ? _EmptyShares()
-                        : visibleShares.isEmpty
-                        ? Center(
-                            child: Text(
-                              _search.isEmpty && _group != null
-                                  ? '这个分组还没有分享'
-                                  : '没有匹配的分享',
-                            ),
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) => GridView.builder(
-                              key: const ValueKey('my-shares-grid'),
-                              padding: EdgeInsets.fromLTRB(
-                                12,
-                                4,
-                                12,
-                                widget.onCreateShare == null ? 12 : 88,
                               ),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount:
-                                        ((constraints.maxWidth - 24) / 280)
-                                            .floor()
-                                            .clamp(1, 5),
-                                    mainAxisExtent:
-                                        (_organization.names.isEmpty
-                                            ? 112
-                                            : 136) *
-                                        (MediaQuery.textScalerOf(context)
-                                                    .scale(14) /
-                                                14)
-                                            .clamp(1.0, double.infinity)
-                                            .toDouble(),
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
+                              if (_organizationSource != null)
+                                AppIconButton(
+                                  tooltip: '新建分享分组',
+                                  icon: const Icon(
+                                    LucideIcons.folderPlus,
+                                    size: 20,
                                   ),
-                              itemCount: visibleShares.length,
-                              itemBuilder: (BuildContext context, int index) {
-                                final ShareRecord share = visibleShares[index];
-                                final ShareStatus status = shareStatusOf(
-                                  share,
-                                  now: widget.now,
-                                );
-                                final bool expanded =
-                                    _expandedId == share.id.value;
-                                return _ShareCard(
-                                  key: ValueKey(
-                                    '${share.id.value}:${widget.services?.localDomain?.host ?? ''}:${widget.services?.localDomain?.ready ?? true}',
-                                  ),
-                                  share: share,
-                                  status: status,
-                                  expanded: expanded,
-                                  canExpand: _browse != null,
-                                  onToggleExpand: () => _toggleExpand(share),
-                                  onCopyWebLink: () => _copyWebLink(share),
-                                  onCopyAppLink: () => _copyAppLink(share),
-                                  resolveWebLink: () => _resolveWebLink(share),
-                                  onStop: () => _stop(share),
-                                  onResume: () => _resume(share),
-                                  onDelete: () => _confirmDelete(share),
-                                  onRename: () => _rename(share),
-                                  groupName: _organization.names.isEmpty
+                                  onPressed: _savingOrganization
                                       ? null
-                                      : _organization.names[_organization
-                                                .groupOf(share.id.value)] ??
-                                            '未分组',
-                                  now: widget.now,
-                                );
-                              },
-                            ),
+                                      : _createGroup,
+                                ),
+                              AppMenuButton<String>(
+                                tooltip: '筛选分享分组',
+                                icon: const Icon(LucideIcons.listFilter),
+                                enabled: !_savingOrganization,
+                                itemBuilder: (_) => [
+                                  const AppMenuItem(value: '*', label: '全部分组'),
+                                  for (final id in _organization.groups)
+                                    AppMenuItem(
+                                      value: id,
+                                      label: _organization.names[id] ?? '未分组',
+                                    ),
+                                ],
+                                onSelected: (id) => setState(
+                                  () => _group = id == '*' ? null : id,
+                                ),
+                              ),
+                            ],
                           ),
-                  ),
-                ],
-              );
-            },
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                        child: AppTextField(
+                          key: const ValueKey('my-shares-search'),
+                          onChanged: (text) => setState(() => _search = text),
+                          label: '搜索分享名称或文件位置',
+                          placeholder: true,
+                          leading: Icon(LucideIcons.search),
+                        ),
+                      ),
+                      Expanded(
+                        child: shares.isEmpty
+                            ? _EmptyShares()
+                            : visibleShares.isEmpty
+                            ? Center(
+                                child: Text(
+                                  _search.isEmpty && _group != null
+                                      ? '这个分组还没有分享'
+                                      : '没有匹配的分享',
+                                ),
+                              )
+                            : ShareDragGrid(
+                                onDragUpdate: _scrollGroupsDuringDrag,
+                                onDragEnd: () {
+                                  _groupDragPosition = null;
+                                  _groupAutoScroller?.stopAutoScroll();
+                                },
+                                shares: visibleShares,
+                                enabled:
+                                    _organizationSource != null &&
+                                    !_savingOrganization &&
+                                    !_editingOrganization,
+                                onPlace: (share, target, after) => unawaited(
+                                  _saveOrganization(
+                                    _organization.place(
+                                      shares,
+                                      share: share,
+                                      target: target,
+                                      after: after,
+                                    ),
+                                  ),
+                                ),
+                                padding: EdgeInsets.fromLTRB(
+                                  12,
+                                  4,
+                                  12,
+                                  widget.onCreateShare == null ? 12 : 88,
+                                ),
+                                itemExtent:
+                                    (_organization.names.isEmpty ? 112 : 136) *
+                                    (MediaQuery.textScalerOf(context)
+                                                .scale(14) /
+                                            14)
+                                        .clamp(1.0, double.infinity)
+                                        .toDouble(),
+                                itemBuilder: (share) {
+                                  final ShareStatus status = shareStatusOf(
+                                    share,
+                                    now: widget.now,
+                                  );
+                                  final bool expanded =
+                                      _expandedId == share.id.value;
+                                  return _ShareCard(
+                                    key: ValueKey(
+                                      '${share.id.value}:${widget.services?.localDomain?.host ?? ''}:${widget.services?.localDomain?.ready ?? true}',
+                                    ),
+                                    share: share,
+                                    status: status,
+                                    expanded: expanded,
+                                    canExpand: _browse != null,
+                                    onToggleExpand: () => _toggleExpand(share),
+                                    onCopyWebLink: () => _copyWebLink(share),
+                                    onCopyAppLink: () => _copyAppLink(share),
+                                    resolveWebLink: () =>
+                                        _resolveWebLink(share),
+                                    onStop: () => _stop(share),
+                                    onResume: () => _resume(share),
+                                    onDelete: () => _confirmDelete(share),
+                                    onRename: () => _rename(share),
+                                    draggable: _organizationSource != null,
+                                    groupName: _organization.names.isEmpty
+                                        ? null
+                                        : _organization.names[_organization
+                                                  .groupOf(share.id.value)] ??
+                                              '未分组',
+                                    now: widget.now,
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
           ),
         ),
         if (widget.onCreateShare != null)
@@ -856,7 +1055,7 @@ class _SharesPageState extends State<SharesPage> {
                         dimension: 24,
                         child: MiuixCircularProgressIndicator(),
                       )
-                    : const Icon(Icons.add, size: 28),
+                    : const Icon(LucideIcons.plus, size: 28),
               ),
             ),
           ),
@@ -886,6 +1085,7 @@ class _ShareCard extends StatefulWidget {
     required this.onResume,
     required this.onDelete,
     required this.onRename,
+    this.draggable = false,
     this.groupName,
     this.now,
   });
@@ -909,6 +1109,7 @@ class _ShareCard extends StatefulWidget {
   final VoidCallback onResume;
   final VoidCallback onDelete;
   final VoidCallback onRename;
+  final bool draggable;
   final String? groupName;
   final DateTime? now;
 
@@ -1007,8 +1208,11 @@ class _ShareCardState extends State<_ShareCard> {
           child: GestureDetector(
             onSecondaryTapDown: (details) =>
                 _menuKey.currentState?.openContextMenu(details.globalPosition),
-            onLongPressStart: (details) =>
-                _menuKey.currentState?.openContextMenu(details.globalPosition),
+            onLongPressStart: widget.draggable
+                ? null
+                : (details) => _menuKey.currentState?.openContextMenu(
+                    details.globalPosition,
+                  ),
             child: ShareRow(
               share: share,
               compact: true,
@@ -1196,12 +1400,12 @@ class _ShareActionsMenuState extends State<ShareActionsMenu> {
     return <ShareMenuItem>[
       if (widget.onRename != null)
         ShareMenuItem(
-          icon: Symbols.edit,
+          icon: LucideIcons.pencil,
           label: '设置分享名称',
           onTap: widget.onRename!,
         ),
       ShareMenuItem(
-        icon: Symbols.public,
+        icon: LucideIcons.globe,
         label: widget.webAvailable ? '复制网页链接' : '复制网页链接（不可用）',
         enabled: widget.webAvailable,
         onTap: widget.onCopyWeb,
@@ -1209,21 +1413,25 @@ class _ShareActionsMenuState extends State<ShareActionsMenu> {
       if (widget.canExpand)
         ShareMenuItem(
           icon: widget.expanded
-              ? Symbols.keyboard_arrow_up
-              : Symbols.unfold_more,
+              ? LucideIcons.chevronUp
+              : LucideIcons.chevronsUpDown,
           label: widget.expanded ? '收起内容' : '展开查看文件',
           onTap: widget.onToggleExpand,
         ),
       if (widget.canResume)
         ShareMenuItem(
-          icon: Symbols.play_circle,
+          icon: LucideIcons.circlePlay,
           label: '重新启用',
           onTap: widget.onResume,
         ),
       if (widget.canStop)
-        ShareMenuItem(icon: Symbols.block, label: '停止共享', onTap: widget.onStop),
+        ShareMenuItem(
+          icon: LucideIcons.ban,
+          label: '停止共享',
+          onTap: widget.onStop,
+        ),
       ShareMenuItem(
-        icon: Symbols.delete_outline,
+        icon: LucideIcons.trash2,
         label: '删除',
         danger: true,
         dividerBefore: true,
@@ -1280,7 +1488,7 @@ class _ShareActionsMenuState extends State<ShareActionsMenu> {
                 ),
                 alignment: Alignment.center,
                 child: Icon(
-                  Symbols.more_horiz,
+                  LucideIcons.ellipsis,
                   size: 16,
                   color: active ? tokens.accent : tokens.fg,
                 ),
@@ -1400,13 +1608,13 @@ class _EmptyShares extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(Symbols.folder_open, size: 32, color: tokens.fgDim),
+              Icon(LucideIcons.folderOpen, size: 32, color: tokens.fgDim),
               const SizedBox(height: 12),
               Text(
                 '还没有分享',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: tokens.fg,
                 ),
               ),
@@ -1472,7 +1680,7 @@ class _WebLinkQrSectionState extends State<_WebLinkQrSection> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Icon(Symbols.qr_code_2, size: 28, color: tokens.fgDim),
+                Icon(LucideIcons.qrCode, size: 28, color: tokens.fgDim),
                 const SizedBox(height: 8),
                 Text(
                   '无可用网页链接',
@@ -1566,7 +1774,7 @@ class _ShareDetailDialog extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
               child: Row(
                 children: <Widget>[
-                  Icon(Symbols.folder_open, size: 20, color: tokens.accent),
+                  Icon(LucideIcons.folderOpen, size: 20, color: tokens.accent),
                   const SizedBox(width: 10),
                   Expanded(
                     child: AppTooltip(
@@ -1576,7 +1784,7 @@ class _ShareDetailDialog extends StatelessWidget {
                         maxLines: 2,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                           color: tokens.fg,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1585,7 +1793,7 @@ class _ShareDetailDialog extends StatelessWidget {
                   ),
                   AppIconButton(
                     tooltip: '关闭',
-                    icon: Icon(Symbols.close, size: 18, color: tokens.fgDim),
+                    icon: Icon(LucideIcons.x, size: 18, color: tokens.fgDim),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

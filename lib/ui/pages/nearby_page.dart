@@ -12,6 +12,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -315,7 +316,9 @@ class _NearbyPageState extends State<NearbyPage> {
         AppListTile(
           key: ValueKey<String>('peer-group-$id'),
           dense: true,
-          leading: Icon(collapsed ? Icons.chevron_right : Icons.expand_more),
+          leading: Icon(
+            collapsed ? LucideIcons.chevronRight : LucideIcons.chevronDown,
+          ),
           title: Text('$name (${peers.length})'),
           onTap: () => setState(() {
             if (!_collapsed.add(id)) _collapsed.remove(id);
@@ -351,7 +354,7 @@ class _NearbyPageState extends State<NearbyPage> {
     if (_loading) return const Center(child: MiuixCircularProgressIndicator());
     if (_error != null) {
       return _Message(
-        icon: Icons.error_outline,
+        icon: LucideIcons.circleAlert,
         title: '加载附近的人失败',
         body: '$_error',
         color: tokens.fgDim,
@@ -382,7 +385,7 @@ class _NearbyPageState extends State<NearbyPage> {
             onChanged: (value) => setState(() => _query = value),
             label: '搜索名字或设备 ID',
             placeholder: true,
-            leading: Icon(Icons.search),
+            leading: Icon(LucideIcons.search),
           ),
         ),
         Expanded(
@@ -446,13 +449,13 @@ class _EmptyNearby extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(Icons.wifi_tethering_off, size: 40, color: tokens.fgDim),
+              Icon(LucideIcons.wifiOff, size: 40, color: tokens.fgDim),
               const SizedBox(height: 16),
               Text(
                 '附近还没有人',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: tokens.fg,
                 ),
               ),
@@ -499,7 +502,7 @@ class _PeerSharesSheet extends StatelessWidget {
         navigationIcon: AppIconButton(
           tooltip: '返回',
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(LucideIcons.arrowLeft),
         ),
       ),
       body: shares.isEmpty
@@ -519,8 +522,8 @@ class _PeerSharesSheet extends StatelessWidget {
                   child: AppListTile(
                     leading: Icon(
                       view.share.kind == 'file'
-                          ? Icons.insert_drive_file_outlined
-                          : Icons.folder_outlined,
+                          ? LucideIcons.file
+                          : LucideIcons.folder,
                       color: view.available ? tokens.accent : tokens.fgDim,
                     ),
                     title: Text(
@@ -562,7 +565,7 @@ class _ListHeader extends StatelessWidget {
             title,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: tokens.fg,
             ),
           ),
@@ -572,11 +575,7 @@ class _ListHeader extends StatelessWidget {
           if (onAddGroup != null)
             AppIconButton(
               tooltip: '新建分组',
-              icon: Icon(
-                Icons.group_add_outlined,
-                size: 18,
-                color: tokens.fgDim,
-              ),
+              icon: Icon(LucideIcons.userPlus, size: 18, color: tokens.fgDim),
               onPressed: onAddGroup,
             ),
         ],
@@ -645,13 +644,13 @@ class ServicesNotConnected extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(Icons.cloud_off_outlined, size: 40, color: tokens.fgDim),
+              Icon(LucideIcons.cloudOff, size: 40, color: tokens.fgDim),
               const SizedBox(height: 16),
               Text(
                 '未连接服务',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: tokens.fg,
                 ),
               ),

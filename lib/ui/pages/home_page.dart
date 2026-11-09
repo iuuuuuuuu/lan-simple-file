@@ -8,6 +8,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -28,19 +29,19 @@ import '../widgets/drop_share_overlay.dart';
 /// 五个一级入口（对外兼容保留）。
 enum HomeTab {
   /// 附近的人。
-  nearby('附近', Icons.chat_bubble_outline, Icons.chat_bubble),
+  nearby('附近', LucideIcons.messageCircle, LucideIcons.messageCircle),
 
   /// 我的分享。
-  shares('我的分享', Icons.folder_outlined, Icons.folder),
+  shares('我的分享', LucideIcons.folder, LucideIcons.folder),
 
   /// 群组。
-  groups('群组', Icons.groups_outlined, Icons.groups),
+  groups('群组', LucideIcons.users, LucideIcons.users),
 
   /// 传输。
-  transfers('传输记录', Icons.history_outlined, Icons.history),
+  transfers('传输记录', LucideIcons.history, LucideIcons.history),
 
   /// 设置。
-  settings('设置', Icons.settings_outlined, Icons.settings);
+  settings('设置', LucideIcons.settings, LucideIcons.settings);
 
   const HomeTab(this.label, this.icon, this.selectedIcon);
 
@@ -173,9 +174,9 @@ class _ThemeModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AppThemeMode mode = ref.watch(themeModeProvider);
     final IconData icon = switch (mode) {
-      AppThemeMode.system => Icons.brightness_auto_outlined,
-      AppThemeMode.light => Icons.light_mode_outlined,
-      AppThemeMode.dark => Icons.dark_mode_outlined,
+      AppThemeMode.system => LucideIcons.sunMoon,
+      AppThemeMode.light => LucideIcons.sun,
+      AppThemeMode.dark => LucideIcons.moon,
     };
     return CaptionButton(
       key: const ValueKey<String>('theme-mode-button'),

@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/miuix_test_support.dart';
@@ -205,9 +206,9 @@ void main() {
         ),
       );
       final Icon successMark = successIcons.firstWhere(
-        (Icon i) => i.icon != Icons.close,
+        (Icon i) => i.icon != LucideIcons.x,
       );
-      expect(successMark.icon, Icons.check_circle_outline);
+      expect(successMark.icon, LucideIcons.circleCheck);
       AppToast.dismiss();
       await tester.pump();
 
@@ -221,9 +222,9 @@ void main() {
         ),
       );
       final Icon errorMark = errorIcons.firstWhere(
-        (Icon i) => i.icon != Icons.close,
+        (Icon i) => i.icon != LucideIcons.x,
       );
-      expect(errorMark.icon, Icons.error_outline);
+      expect(errorMark.icon, LucideIcons.circleAlert);
     });
 
     testWidgets('成功/失败的文字颜色都取自 token，不是红或绿', (WidgetTester tester) async {

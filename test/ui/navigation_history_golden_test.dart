@@ -10,7 +10,7 @@ import 'package:lan_simple_file/ui/pages/transfer_history_page.dart';
 import 'package:lan_simple_file/ui/shell/session_rail.dart';
 import 'package:lan_simple_file/ui/widgets/app_controls.dart';
 import 'package:lan_simple_file/ui/widgets/chat_search_dialog.dart';
-import 'package:lan_simple_file/ui/widgets/mobile_navigation.dart';
+import 'package:lan_simple_file/ui/widgets/floating_navigation.dart';
 
 import '../core/messaging/chat_search_test.dart'
     show searchThread, searchMessage;
@@ -44,13 +44,11 @@ void main() {
           builder: (context, child) => AppMiuixTheme(child: child!),
           home: AppScaffold(
             body: body,
-            bottomNavigationBar: mobile
-                ? MobileNavigation(
-                    selected: ShellSection.transfers,
-                    unread: 101,
-                    onSelect: (_) {},
-                  )
-                : null,
+            bottomNavigationBar: FloatingNavigation(
+              selected: ShellSection.transfers,
+              unread: 101,
+              onSelect: (_) {},
+            ),
           ),
         );
         await tester.pumpWidget(wrap(TransferHistoryPage(source: history)));

@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -134,9 +135,7 @@ class ShareRow extends StatelessWidget {
             Row(
               children: <Widget>[
                 Icon(
-                  share.kind == 'file'
-                      ? Icons.insert_drive_file_outlined
-                      : Icons.folder_outlined,
+                  share.kind == 'file' ? LucideIcons.file : LucideIcons.folder,
                   size: 18,
                   color: tokens.fgDim,
                 ),
@@ -150,7 +149,7 @@ class ShareRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         color: tokens.fg,
                       ),
                     ),
@@ -191,13 +190,13 @@ class ShareRow extends StatelessWidget {
                 if (onCopyLink != null)
                   AppButton.icon(
                     onPressed: active ? onCopyLink : null,
-                    icon: const Icon(Icons.link, size: 16),
+                    icon: const Icon(LucideIcons.link, size: 16),
                     label: const Text('复制链接'),
                   ),
                 if (onStop != null)
                   AppButton.icon(
                     onPressed: active ? onStop : null,
-                    icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                    icon: const Icon(LucideIcons.circleStop, size: 16),
                     label: const Text('停止共享'),
                   ),
                 if (!compact && trailing != null) trailing!,

@@ -9,6 +9,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -196,7 +197,7 @@ class _GroupsPageState extends State<GroupsPage> {
                         '群聊',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                           color: tokens.fg,
                         ),
                       ),
@@ -210,13 +211,13 @@ class _GroupsPageState extends State<GroupsPage> {
                         AppButton.icon(
                           key: const ValueKey<String>('create-group'),
                           onPressed: _creating ? null : _create,
-                          icon: const Icon(Icons.add, size: 18),
+                          icon: const Icon(LucideIcons.plus, size: 18),
                           label: const Text('新建群聊'),
                         ),
                       AppIconButton(
                         tooltip: '刷新',
                         icon: Icon(
-                          Icons.refresh,
+                          LucideIcons.refreshCw,
                           size: 18,
                           color: tokens.fgDim,
                         ),
@@ -398,7 +399,7 @@ class GroupRowView extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color: tokens.fg,
                             ),
                           ),
@@ -468,13 +469,13 @@ class _EmptyGroups extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(Icons.groups_outlined, size: 40, color: tokens.fgDim),
+              Icon(LucideIcons.users, size: 40, color: tokens.fgDim),
               const SizedBox(height: 16),
               Text(
                 '还没有群组',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: tokens.fg,
                 ),
               ),

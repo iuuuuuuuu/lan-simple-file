@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -302,7 +303,7 @@ class _ChatPaneState extends State<ChatPane> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Icon(
-                          Icons.folder_outlined,
+                          LucideIcons.folder,
                           size: 24,
                           color: tokens.accent,
                         ),
@@ -412,7 +413,7 @@ class _ChatPaneState extends State<ChatPane> {
                   AppIconButton(
                     tooltip: '返回联系人',
                     onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back_rounded),
+                    icon: const Icon(LucideIcons.arrowLeft),
                   ),
                 _avatar(
                   widget.peer,
@@ -434,7 +435,7 @@ class _ChatPaneState extends State<ChatPane> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                           color: tokens.fg,
                         ),
                       ),
@@ -450,7 +451,7 @@ class _ChatPaneState extends State<ChatPane> {
                   AppIconButton(
                     tooltip: '搜索当前聊天',
                     onPressed: widget.onSearch,
-                    icon: const Icon(Icons.search),
+                    icon: const Icon(LucideIcons.search),
                   ),
               ],
             ),
@@ -468,7 +469,7 @@ class _ChatPaneState extends State<ChatPane> {
                 AppIconButton(
                   tooltip: '返回最新消息',
                   onPressed: widget.onClearFocus,
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(LucideIcons.x),
                 ),
               ],
             ),
@@ -560,7 +561,7 @@ class _ChatPaneState extends State<ChatPane> {
                         tooltip: '发送文件分享',
                         onPressed: _sending ? null : _sendShare,
                         icon: Icon(
-                          Icons.folder_outlined,
+                          LucideIcons.folder,
                           size: 20,
                           color: tokens.fgDim,
                         ),
@@ -571,7 +572,7 @@ class _ChatPaneState extends State<ChatPane> {
                         tooltip: '上传并发送文件',
                         onPressed: _sending ? null : widget.onUpload,
                         icon: Icon(
-                          Icons.add_circle_outline,
+                          LucideIcons.circlePlus,
                           color: tokens.accent,
                         ),
                       ),

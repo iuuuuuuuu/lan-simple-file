@@ -8,6 +8,8 @@ import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/core/shares/share_organization.dart';
 import 'package:lan_simple_file/ui/pages/shares_page.dart';
 import 'package:lan_simple_file/ui/widgets/app_controls.dart';
+import 'package:lan_simple_file/ui/widgets/floating_navigation.dart';
+import 'package:lan_simple_file/ui/shell/session_rail.dart';
 
 import 'share_organization_test.dart' show TestOrganizationSource;
 import 'support/ui_fakes.dart';
@@ -50,6 +52,10 @@ void main() {
             ),
           ),
           home: AppScaffold(
+            bottomNavigationBar: FloatingNavigation(
+              selected: ShellSection.shares,
+              onSelect: (_) {},
+            ),
             body: SharesPage(
               source: source,
               onCreateShare: () async {},

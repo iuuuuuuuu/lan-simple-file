@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-/// QQ/微信桌面端风格三栏外壳：窄图标栏 + 会话列表 + 主内容区。
+/// 悬浮底栏外壳：桌面并排会话列表与主内容区，手机逐页进入。
 ///
 /// 布局契约（也是测试断言的对象）：
 /// - 桌面：联系人与群聊共用左侧分组，右侧显示所选会话。
 /// - 手机：联系人列表与会话页面前后切换，不提供抽屉。
 ///
-/// 三栏由 Key 固定：shell-rail / shell-list / shell-content。
+/// 内容由 Key 固定：shell-list / shell-content，底栏为 app-navigation。
 /// 服务为 null 时照常渲染选择提示，聊天输入不可用。
 library;
 
@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -31,12 +32,13 @@ import '../pages/settings_page.dart';
 import '../pages/shares_page.dart';
 import '../pages/transfer_history_page.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/avatar_badge.dart';
 import '../widgets/drop_share_overlay.dart';
 import '../widgets/share_row.dart';
 import '../widgets/chat_pane.dart';
 import '../widgets/chat_search_dialog.dart';
 import '../widgets/peer_shares_dialog.dart';
-import '../widgets/mobile_navigation.dart';
+import '../widgets/floating_navigation.dart';
 import '../widgets/pick_share_files.dart';
 import '../widgets/share_upload_sheet.dart';
 import '../widgets/share_picker_dialog.dart';
@@ -601,29 +603,6 @@ class _QqShellState extends State<QqShell> {
         needsList && (width >= 600 || _selectedRowId == null);
     final bool showChat = !needsList || width >= 600 || _selectedRowId != null;
 
-    final String selfPeerId =
-        widget.services?.identity.peerId.value ?? 'p_localdevice00';
-
-    // 昵称：优先用窗口注入的账户名（启动时即已知），
-    // 否则用 profile（用户改过的名字会即时反映到图标栏）。
-    final String? selfName =
-        widget.services?.profile.name.trim().isNotEmpty == true
-        ? widget.services!.profile.name
-        : (widget.currentUserName?.trim().isNotEmpty == true
-              ? widget.currentUserName
-              : null);
-
-    final Widget rail = SessionRail(
-      selected: _section,
-      chatUnread: _chatUnread,
-      onSelect: _selectSection,
-      selfPeerId: selfPeerId,
-      selfName: selfName,
-      avatarBytes: widget.services?.avatars?.selfBytes,
-      onOpenSettings: _openSettings,
-      sections: widget.sections.where((s) => s != ShellSection.groups).toList(),
-    );
-
     final Widget list = _buildList();
 
     final Widget content = _buildContent();
@@ -641,9 +620,7 @@ class _QqShellState extends State<QqShell> {
           )
         : Row(
             children: <Widget>[
-              rail,
               if (threeColumn) ...<Widget>[
-                AppVerticalDivider(width: 1, color: tokens.line),
                 showChat ? list : Expanded(child: list),
                 AppVerticalDivider(width: 1, color: tokens.line),
               ],
@@ -691,8 +668,7 @@ class _QqShellState extends State<QqShell> {
 
     final inConversation = needsList && _selectedRowId != null;
     final navigationVisible =
-        mobile &&
-        !inConversation &&
+        (!mobile || !inConversation) &&
         MediaQuery.viewInsetsOf(context).bottom == 0;
     final shell = PopScope(
       canPop: !mobile || !inConversation,
@@ -707,7 +683,7 @@ class _QqShellState extends State<QqShell> {
       child: AppScaffold(
         backgroundColor: tokens.bg,
         bottomNavigationBar: navigationVisible
-            ? MobileNavigation(
+            ? FloatingNavigation(
                 selected: _section,
                 onSelect: _selectSection,
                 unread: _chatUnread,
@@ -720,6 +696,19 @@ class _QqShellState extends State<QqShell> {
               if (!mobile)
                 _TopBar(
                   title: _section.label,
+                  trailing: AppIconButton(
+                    key: const ValueKey('shell-self-avatar'),
+                    tooltip: '本机设置',
+                    onPressed: _openSettings,
+                    padding: const EdgeInsets.all(4),
+                    icon: AvatarBadge(
+                      peerId:
+                          widget.services?.identity.peerId.value ??
+                          'p_localdevice00',
+                      avatarBytes: widget.services?.avatars?.selfBytes,
+                      size: 28,
+                    ),
+                  ),
                   onBack: needsList && width < 600 && _selectedRowId != null
                       ? () => setState(() {
                           _selectedRowId = null;
@@ -807,7 +796,7 @@ class _QqShellState extends State<QqShell> {
                   AppIconButton(
                     key: const ValueKey('chat-history-search-button'),
                     tooltip: '搜索聊天记录和文件',
-                    icon: const Icon(Icons.manage_search),
+                    icon: const Icon(LucideIcons.search),
                     onPressed: _searchMessages,
                   ),
                 if (_section == ShellSection.nearby &&
@@ -815,7 +804,7 @@ class _QqShellState extends State<QqShell> {
                   AppMenuButton<String>(
                     key: const ValueKey('session-add'),
                     tooltip: '添加',
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: const Icon(LucideIcons.plus, size: 18),
                     itemBuilder: (_) => [
                       if (_groupsSource != null)
                         const AppMenuItem(value: 'grouping', label: '新建分组'),
@@ -952,7 +941,7 @@ class _QqShellState extends State<QqShell> {
             _selectedSession;
         if (row == null) {
           return const _PlaceholderContent(
-            icon: Icons.chat_bubble_outline,
+            icon: LucideIcons.messageCircle,
             title: '选择联系人或群聊',
             body: '从左侧分组列表选择，开始聊天。',
           );
@@ -962,7 +951,7 @@ class _QqShellState extends State<QqShell> {
         final peer = PeerId.tryParse(row.id);
         if (!row.isGroup && peer == null) {
           return const _PlaceholderContent(
-            icon: Icons.chat_bubble_outline,
+            icon: LucideIcons.messageCircle,
             title: '聊天服务未启动',
             body: '这条会话没有有效的设备标识。',
           );
@@ -1063,10 +1052,11 @@ class _QqShellState extends State<QqShell> {
 /// 用户明确否掉了「上面显示个内个啥」的常驻顶部条，
 /// 因此这里**不再承载任何提示文本或关闭按钮**。
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.title, this.onBack});
+  const _TopBar({required this.title, this.onBack, this.trailing});
 
   final String title;
   final VoidCallback? onBack;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1081,17 +1071,18 @@ class _TopBar extends StatelessWidget {
           if (onBack != null)
             AppIconButton(
               tooltip: '返回联系人',
-              icon: Icon(Icons.arrow_back, size: 20, color: tokens.fgDim),
+              icon: Icon(LucideIcons.arrowLeft, size: 20, color: tokens.fgDim),
               onPressed: onBack,
             ),
           Text(
             title,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: tokens.fg,
             ),
           ),
+          if (trailing != null) ...[const Spacer(), trailing!],
         ],
       ),
     );
@@ -1127,7 +1118,7 @@ class _PlaceholderContent extends StatelessWidget {
                 title,
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: tokens.fg,
                 ),
               ),

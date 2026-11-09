@@ -56,7 +56,7 @@ void main() {
         '设置',
       ]);
       // 外壳已改为三栏：最窄图标栏 + 会话列表 + 内容区，用 Key 断言结构存在。
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('app-navigation')), findsOneWidget);
     });
 
     testWidgets('默认落在「附近」并渲染真实页面（无服务时给未连接提示）', (WidgetTester tester) async {
@@ -73,7 +73,7 @@ void main() {
       expect(find.byType(NavigationRail), findsNothing);
       expect(find.byType(ListTile), findsNothing);
       // 新结构的三个锚点都在。
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('app-navigation')), findsOneWidget);
       expect(find.byKey(const ValueKey<String>('shell-list')), findsOneWidget);
       expect(find.byKey(kShellContentKey), findsOneWidget);
     });
@@ -82,12 +82,12 @@ void main() {
       await _pumpApp(tester, size: const Size(420, 900));
       expect(find.byType(NavigationBar), findsNothing, reason: '窄屏不该退回旧底部导航');
       expect(find.byKey(const ValueKey<String>('shell-rail')), findsNothing);
-      expect(find.byKey(const ValueKey('mobile-navigation')), findsOneWidget);
+      expect(find.byKey(const ValueKey('app-navigation')), findsOneWidget);
     });
 
     testWidgets('点图标栏进入可搜索的传输记录页', (WidgetTester tester) async {
       await _pumpApp(tester, size: const Size(1280, 800));
-      await tester.tap(find.byKey(const ValueKey<String>('rail-transfers')));
+      await tester.tap(find.byKey(const ValueKey<String>('nav-transfers')));
       await tester.pumpAndSettle();
       expect(find.text('传输记录'), findsWidgets);
       expect(
@@ -98,7 +98,7 @@ void main() {
 
     testWidgets('点本机头像进入设置页，设置页有许可声明', (WidgetTester tester) async {
       await _pumpApp(tester, size: const Size(1280, 800));
-      await tester.tap(find.byKey(const ValueKey<String>('rail-self-avatar')));
+      await tester.tap(find.byKey(const ValueKey<String>('shell-self-avatar')));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('GPL-3.0-only'),
@@ -114,7 +114,7 @@ void main() {
       await tester.showKeyboard(find.byKey(const ValueKey('session-search')));
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('mobile-navigation')), findsNothing);
+      expect(find.byKey(const ValueKey('app-navigation')), findsNothing);
       final search = tester.getRect(
         find.byKey(const ValueKey('session-search')),
       );

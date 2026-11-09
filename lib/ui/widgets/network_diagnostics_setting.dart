@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/network_diagnostics.dart';
 import '../shell/custom_title_bar.dart';
@@ -16,15 +17,15 @@ class NetworkDiagnosticsEntry extends StatelessWidget {
     key: const ValueKey('open-network-diagnostics'),
     label: '网络诊断',
     subtitle: '查看与导出本机网络日志',
-    leading: const Icon(Icons.network_check, size: 20),
-    trailing: const Icon(Icons.chevron_right, size: 20),
+    leading: const Icon(LucideIcons.activity, size: 20),
+    trailing: const Icon(LucideIcons.chevronRight, size: 20),
     onTap: () => Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => AppScaffold(
           body: SafeArea(
             child: Column(
               children: [
-                  if (CustomTitleBar.enabled) const CustomTitleBar(),
+                if (CustomTitleBar.enabled) const CustomTitleBar(),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -33,14 +34,14 @@ class NetworkDiagnosticsEntry extends StatelessWidget {
                         key: const ValueKey('diagnostics-back'),
                         tooltip: '返回设置',
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back),
+                        icon: const Icon(LucideIcons.arrowLeft),
                       ),
                       const SizedBox(width: 12),
                       const Text(
                         '网络诊断',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -136,7 +137,7 @@ class _NetworkDiagnosticsSettingState extends State<NetworkDiagnosticsSetting> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.share_outlined, size: 18),
+                      Icon(LucideIcons.share2, size: 18),
                       SizedBox(width: 6),
                       Text('分享日志'),
                     ],
@@ -148,7 +149,7 @@ class _NetworkDiagnosticsSettingState extends State<NetworkDiagnosticsSetting> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.save_alt, size: 18),
+                      Icon(LucideIcons.download, size: 18),
                       SizedBox(width: 6),
                       Text('保存日志文件'),
                     ],

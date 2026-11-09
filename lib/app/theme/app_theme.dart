@@ -22,10 +22,43 @@ class AppMiuixTheme extends StatelessWidget {
   Widget build(BuildContext context) => MiuixTheme(
     data: MiuixThemeData.of(
       Theme.of(context).brightness,
+      textStyles: AppTypography.miuix(Theme.of(context).textTheme.bodyMedium!),
       fontWeightAdjustment: MediaQuery.boldTextOf(context) ? 100 : 0,
     ),
     child: Material(type: MaterialType.transparency, child: child),
   );
+}
+
+/// Keep inherited text and Miuix controls on the same family and weight scale.
+abstract final class AppTypography {
+  static const body = FontWeight.w400;
+  static const heading = FontWeight.w500;
+
+  static MiuixTextStyles miuix(TextStyle base) {
+    TextStyle style(double size, {bool title = false, double? height}) =>
+        base.copyWith(
+          fontSize: size,
+          fontWeight: title ? heading : body,
+          letterSpacing: 0,
+          height: height,
+        );
+    return MiuixTextStyles(
+      main: style(17),
+      paragraph: style(17, height: 1.2),
+      body1: style(16),
+      body2: style(14),
+      button: style(17),
+      footnote1: style(13),
+      footnote2: style(11),
+      headline1: style(17, title: true),
+      headline2: style(16, title: true),
+      subtitle: style(14, title: true),
+      title1: style(32, title: true),
+      title2: style(24, title: true),
+      title3: style(20, title: true),
+      title4: style(18, title: true),
+    );
+  }
 }
 
 /// 主题模式三态：跟随系统 / 强制明色 / 强制暗色。
@@ -110,7 +143,29 @@ abstract final class AppTheme {
       platform: TargetPlatform.windows,
       colorScheme: scheme,
     ).black;
-    final TextTheme textTheme = base.apply(bodyColor: t.fg, displayColor: t.fg);
+    TextStyle style(TextStyle? value, {bool title = false}) => value!.copyWith(
+      fontWeight: title ? AppTypography.heading : AppTypography.body,
+      letterSpacing: 0,
+    );
+    final textTheme = base
+        .copyWith(
+          displayLarge: style(base.displayLarge, title: true),
+          displayMedium: style(base.displayMedium, title: true),
+          displaySmall: style(base.displaySmall, title: true),
+          headlineLarge: style(base.headlineLarge, title: true),
+          headlineMedium: style(base.headlineMedium, title: true),
+          headlineSmall: style(base.headlineSmall, title: true),
+          titleLarge: style(base.titleLarge, title: true),
+          titleMedium: style(base.titleMedium, title: true),
+          titleSmall: style(base.titleSmall, title: true),
+          bodyLarge: style(base.bodyLarge),
+          bodyMedium: style(base.bodyMedium),
+          bodySmall: style(base.bodySmall),
+          labelLarge: style(base.labelLarge),
+          labelMedium: style(base.labelMedium),
+          labelSmall: style(base.labelSmall),
+        )
+        .apply(bodyColor: t.fg, displayColor: t.fg);
 
     return ThemeData(
       brightness: t.brightness,
@@ -135,7 +190,7 @@ abstract final class AppTheme {
         titleTextStyle: TextStyle(
           color: t.fg,
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         ),
       ),
       iconTheme: IconThemeData(color: t.fgDim, size: 20),

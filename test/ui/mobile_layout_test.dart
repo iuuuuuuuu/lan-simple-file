@@ -18,20 +18,20 @@ void main() {
     await tester.pumpWidget(wrapShell(const QqShell()));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
-    expect(find.byKey(const ValueKey('mobile-navigation')), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-navigation')), findsOneWidget);
     expect(find.byType(MiuixFloatingNavigationBar), findsOneWidget);
     expect(find.byType(MiuixFloatingNavigationBarItem), findsNWidgets(4));
     expect(find.byKey(const ValueKey('mobile-upload')), findsNothing);
     expect(tester.getRect(find.byKey(const ValueKey('shell-list'))).width, 390);
     expect(
-      tester.getRect(find.byKey(const ValueKey('mobile-navigation'))).top,
+      tester.getRect(find.byKey(const ValueKey('app-navigation'))).top,
       greaterThan(700),
     );
-    await tester.tap(find.byKey(const ValueKey('mobile-nav-settings')));
+    await tester.tap(find.byKey(const ValueKey('nav-settings')));
     await tester.pumpAndSettle();
     expect(find.text('本机信息'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byKey(const ValueKey('mobile-nav-transfers')));
+    await tester.tap(find.byKey(const ValueKey('nav-transfers')));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('transfer-history-search')),

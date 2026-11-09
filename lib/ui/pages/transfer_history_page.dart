@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -191,7 +192,7 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
                 const Expanded(
                   child: Text(
                     '传输记录',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                 ),
                 AppIconButton(
@@ -203,12 +204,14 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
                           _selecting = !_selecting;
                           _selected.clear();
                         }),
-                  icon: Icon(_selecting ? Icons.done : Icons.checklist),
+                  icon: Icon(
+                    _selecting ? LucideIcons.check : LucideIcons.listChecks,
+                  ),
                 ),
                 AppIconButton(
                   tooltip: '刷新记录',
                   onPressed: _busy ? null : _reload,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(LucideIcons.refreshCw),
                 ),
               ],
             ),
@@ -219,7 +222,7 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
               key: const ValueKey('transfer-history-search'),
               label: '搜索文件名或来源',
               placeholder: true,
-              leading: const Icon(Icons.search),
+              leading: const Icon(LucideIcons.search),
               onChanged: (value) => setState(() => _query = value),
             ),
           ),
@@ -256,7 +259,7 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
                     onPressed: _busy || _selected.isEmpty
                         ? null
                         : () => _remove({..._selected}),
-                    icon: const Icon(Icons.delete_outline),
+                    icon: const Icon(LucideIcons.trash2),
                   ),
                 ],
               ),
@@ -292,8 +295,8 @@ class _TransferHistoryPageState extends State<TransferHistoryPage> {
                               )
                             : Icon(
                                 entry.direction == TransferDirection.upload
-                                    ? Icons.north_east
-                                    : Icons.south_west,
+                                    ? LucideIcons.arrowUpRight
+                                    : LucideIcons.arrowDownLeft,
                               ),
                         title: Text(
                           entry.name,

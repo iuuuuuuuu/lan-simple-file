@@ -90,7 +90,11 @@ Future<void> main(List<String> arguments) async {
     await File('${dir.path}/passed').writeAsString(
       '$mode: tray ready, HTTP 200, visibility correct, reopen and hide passed',
     );
-    await close!.requestClose(forceExit: true);
+    await wc.showDesktopWindow();
+    await close!.setAction(CloseAction.exit);
+    await File('${dir.path}/close-requested').writeAsString('exit');
+    // Use the same native close event as the title-bar button and Alt+F4.
+    await wc.closeWindow();
   } on Object catch (error, stack) {
     await File('${dir.path}/failed').writeAsString('$error\n$stack');
     await services?.stop();

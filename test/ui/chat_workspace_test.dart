@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -191,7 +192,7 @@ void main() {
     await tester.pumpAndSettle();
     final title = tester.widget<Text>(find.text('工作资料'));
     final path = tester.widget<Text>(find.text(shareLocationLabel(record)));
-    expect(title.style!.fontWeight, FontWeight.w600);
+    expect(title.style!.fontWeight, FontWeight.w500);
     expect(path.style!.fontSize, lessThan(title.style!.fontSize!));
     final gesture = await tester.createGesture(
       kind: PointerDeviceKind.mouse,
@@ -215,13 +216,13 @@ void main() {
             children: [
               CaptionButton(
                 tooltip: '关闭',
-                icon: Icons.close,
+                icon: LucideIcons.x,
                 danger: true,
                 onTap: () async {},
               ),
               CaptionButton(
                 tooltip: '主题',
-                icon: Icons.dark_mode_outlined,
+                icon: LucideIcons.moon,
                 selected: true,
                 onTap: () async {},
               ),
@@ -261,8 +262,7 @@ void main() {
       );
       expect(theme.backgroundColor, colors.secondaryContainer);
       expect(
-        IconTheme.of(tester.element(find.byIcon(Icons.dark_mode_outlined)))
-            .color,
+        IconTheme.of(tester.element(find.byIcon(LucideIcons.moon))).color,
         colors.primary,
       );
       await mouse.removePointer();

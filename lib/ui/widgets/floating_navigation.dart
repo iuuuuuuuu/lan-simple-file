@@ -5,8 +5,8 @@ import '../shell/session_rail.dart';
 import 'app_controls.dart';
 import 'avatar_badge.dart' show UnreadPill;
 
-class MobileNavigation extends StatelessWidget {
-  const MobileNavigation({
+class FloatingNavigation extends StatelessWidget {
+  const FloatingNavigation({
     super.key,
     required this.selected,
     required this.onSelect,
@@ -21,7 +21,7 @@ class MobileNavigation extends StatelessWidget {
     Widget destination(ShellSection section, String label) => AppTooltip(
       message: label,
       child: MiuixFloatingNavigationBarItem(
-        key: ValueKey('mobile-nav-${section.name}'),
+        key: ValueKey('nav-${section.name}'),
         selected: selected == section,
         onPressed: () => onSelect(section),
         icon: Stack(
@@ -35,7 +35,7 @@ class MobileNavigation extends StatelessWidget {
                 child: DefaultTextStyle.merge(
                   style: const TextStyle(fontSize: 11, height: 1.2),
                   child: UnreadPill(
-                    key: const ValueKey('mobile-chat-unread'),
+                    key: const ValueKey('chat-unread'),
                     count: unread,
                     compact: true,
                   ),
@@ -51,7 +51,7 @@ class MobileNavigation extends StatelessWidget {
     return SizedBox(
       height: 88 + MediaQuery.viewPaddingOf(context).bottom,
       child: MiuixFloatingNavigationBar(
-        key: const ValueKey('mobile-navigation'),
+        key: const ValueKey('app-navigation'),
         children: [
           destination(ShellSection.nearby, '聊天'),
           destination(ShellSection.shares, '分享'),

@@ -24,6 +24,7 @@ import 'package:lan_simple_file/ui/widgets/app_toast.dart';
 import 'package:lan_simple_file/ui/widgets/qr_panel.dart';
 
 import 'support/ui_fakes.dart';
+
 /// 装一个剪贴板探针，返回收到的调用列表。
 List<MethodCall> _installClipboardProbe(WidgetTester tester) {
   final List<MethodCall> calls = <MethodCall>[];
@@ -88,25 +89,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // 卡片上不该再有平铺的复制按钮（用户要求收进菜单）。
-      expect(find.text('复制网页链接'), findsNothing,
-          reason: '未开菜单时按钮不该占卡片位置');
+      expect(find.text('复制网页链接'), findsNothing, reason: '未开菜单时按钮不该占卡片位置');
 
       await _tapMenu(tester, '复制网页链接');
       await _settleToast(tester);
 
       expect(calls, hasLength(1));
       final String text = _clipboardText(calls.single);
-      expect(text.startsWith('http://'), isTrue,
-          reason: '必须是浏览器能打开的网页链接');
+      expect(text.startsWith('http://'), isTrue, reason: '必须是浏览器能打开的网页链接');
       expect(text.contains('/s/'), isTrue, reason: '必须是网页取件路径');
       expect(text.contains(':47778'), isTrue, reason: '必须带端口');
       expect(text.contains('10.168.1.115'), isTrue);
       expect(find.textContaining('已复制网页链接'), findsOneWidget);
     });
 
-    testWidgets('菜单里**不再**有 App 深链入口（用户明确不要）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('菜单里**不再**有 App 深链入口（用户明确不要）', (WidgetTester tester) async {
       final FakeMySharesSource source = FakeMySharesSource()
         ..shares = <ShareRecord>[shareRecord(id: 'sh01')]
         ..webLink = Uri.parse('http://10.168.1.115:47778/s/sh01?k=abc');
@@ -115,8 +112,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await _openMenu(tester);
-      expect(find.textContaining('App 链接'), findsNothing,
-          reason: '用户说「复制 app 链接不需要」');
+      expect(
+        find.textContaining('App 链接'),
+        findsNothing,
+        reason: '用户说「复制 app 链接不需要」',
+      );
       expect(find.textContaining('lsf://'), findsNothing);
       // 菜单里复制项只应有一个。
       expect(find.text('复制网页链接'), findsWidgets);
@@ -135,8 +135,11 @@ void main() {
 
       await _openMenu(tester);
       // 不可用时文案要标明，且该项 enabled=false（点了不会触发回调）。
-      expect(find.textContaining('不可用'), findsWidgets,
-          reason: '不可用时必须说明，而不是藏起来');
+      expect(
+        find.textContaining('不可用'),
+        findsWidgets,
+        reason: '不可用时必须说明，而不是藏起来',
+      );
       await tester.tap(find.textContaining('复制网页链接').last);
       await tester.pumpAndSettle();
       expect(calls, isEmpty, reason: '不可用时不得写入剪贴板');
@@ -150,13 +153,18 @@ void main() {
       await tester.pumpWidget(wrapWithTheme(SharesPage(source: source)));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('未检测到局域网地址'), findsWidgets,
-          reason: '必须给出为什么没有网页链接');
+      expect(
+        find.textContaining('未检测到局域网地址'),
+        findsWidgets,
+        reason: '必须给出为什么没有网页链接',
+      );
     });
   });
 
   group('二维码必须编码网页链接', () {
-    testWidgets('有 webLink 时 QrPanel.linkText 是 http 开头', (WidgetTester tester) async {
+    testWidgets('有 webLink 时 QrPanel.linkText 是 http 开头', (
+      WidgetTester tester,
+    ) async {
       final FakeMySharesSource source = FakeMySharesSource()
         ..shares = <ShareRecord>[shareRecord(id: 'sh01')]
         ..webLink = Uri.parse('http://10.168.1.115:47778/s/sh01?k=abc');
@@ -169,8 +177,11 @@ void main() {
       final Finder qr = find.byType(QrPanel);
       expect(qr, findsWidgets, reason: '应当渲染二维码');
       final QrPanel panel = tester.widget<QrPanel>(qr.first);
-      expect(panel.linkText.startsWith('http://'), isTrue,
-          reason: '扫码的人多半没装 App，必须编码网页链接');
+      expect(
+        panel.linkText.startsWith('http://'),
+        isTrue,
+        reason: '扫码的人多半没装 App，必须编码网页链接',
+      );
       expect(panel.linkText.contains('/s/'), isTrue);
     });
 
@@ -183,8 +194,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await _tapMenu(tester, '展开查看文件');
-      expect(find.byType(QrPanel), findsNothing,
-          reason: '没有可用链接时不能画一个假的码');
+      expect(find.byType(QrPanel), findsNothing, reason: '没有可用链接时不能画一个假的码');
       expect(find.textContaining('无可用网页链接'), findsWidgets);
     });
   });
@@ -194,9 +204,7 @@ void main() {
       final FakeMySharesSource source = FakeMySharesSource()
         ..shares = <ShareRecord>[shareRecord(id: 'sh01', enabled: false)]
         ..webLink = Uri.parse('http://10.168.1.115:47778/s/sh01?k=abc')
-        ..entriesByPath = <String, List<TreeEntryView>>{
-          '': <TreeEntryView>[],
-        };
+        ..entriesByPath = <String, List<TreeEntryView>>{'': <TreeEntryView>[]};
 
       await tester.pumpWidget(wrapWithTheme(SharesPage(source: source)));
       await tester.pumpAndSettle();

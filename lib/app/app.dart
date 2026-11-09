@@ -75,6 +75,7 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
             services.store.setSetting(CloseBehavior.settingKey, value),
         choose: _chooseClose,
         hide: wc.hideDesktopWindow,
+        restore: wc.showDesktopWindow,
         exit: () async {
           await services.stop();
           await wc.destroyDesktopWindow();
@@ -99,6 +100,7 @@ class _LanFileAppState extends ConsumerState<LanFileApp> {
               behavior.trayReady = await wc.installDesktopLifecycle(
                 onClose: behavior.requestClose,
                 onExit: () => behavior.requestClose(forceExit: true),
+                canShow: () => !behavior.exiting,
                 logoAsset: _logo.value.iconAsset,
               );
               return behavior.trayReady;

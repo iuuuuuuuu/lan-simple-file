@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -47,19 +48,19 @@ class _ShareUploadSheetState extends State<_ShareUploadSheet> {
             ),
             AppListTile(
               key: const ValueKey('share-upload-file'),
-              leading: const Icon(Icons.insert_drive_file_outlined),
+              leading: const Icon(LucideIcons.file),
               title: const Text('选择文件'),
               onTap: () => _choose(ShareUploadKind.file),
             ),
             AppListTile(
               key: const ValueKey('share-upload-folder'),
-              leading: const Icon(Icons.folder_open_outlined),
+              leading: const Icon(LucideIcons.folderOpen),
               title: const Text('选择文件夹'),
               onTap: () => _choose(ShareUploadKind.folder),
             ),
             AppListTile(
               key: const ValueKey('share-upload-photo'),
-              leading: const Icon(Icons.photo_library_outlined),
+              leading: const Icon(LucideIcons.images),
               title: const Text('选择照片'),
               onTap: () => _choose(ShareUploadKind.photo),
             ),

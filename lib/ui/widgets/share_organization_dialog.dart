@@ -3,6 +3,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/contracts/contracts.dart';
 import '../../core/shares/share_organization.dart';
@@ -137,7 +138,7 @@ class _ShareOrganizationDialogState extends State<ShareOrganizationDialog> {
       message: '拖动排序',
       child: Padding(
         padding: EdgeInsets.all(10),
-        child: Icon(Icons.drag_handle),
+        child: Icon(LucideIcons.gripHorizontal),
       ),
     ),
   );
@@ -179,7 +180,7 @@ class _ShareOrganizationDialogState extends State<ShareOrganizationDialog> {
                   if (_tab == 0) ...[
                     AppMenuButton<String>(
                       tooltip: '选择分享分组',
-                      icon: const Icon(Icons.filter_list),
+                      icon: const Icon(LucideIcons.listFilter),
                       enabled: !_saving,
                       itemBuilder: (_) => [
                         const AppMenuItem(value: '*', label: '全部分享'),
@@ -193,7 +194,7 @@ class _ShareOrganizationDialogState extends State<ShareOrganizationDialog> {
                     ),
                     AppMenuButton<String>(
                       tooltip: '移动所选分享',
-                      icon: const Icon(Icons.drive_file_move_outline),
+                      icon: const Icon(LucideIcons.folderInput),
                       enabled: !_saving && _selected.isNotEmpty,
                       itemBuilder: (_) => [
                         for (final id in groups)
@@ -211,13 +212,13 @@ class _ShareOrganizationDialogState extends State<ShareOrganizationDialog> {
                           : () => setState(
                               () => _layout = _layout.copyWith(order: []),
                             ),
-                      icon: const Icon(Icons.sort_by_alpha),
+                      icon: const Icon(LucideIcons.arrowDownAZ),
                     ),
                   ],
                   AppIconButton(
                     tooltip: '新建分享分组',
                     onPressed: _saving ? null : _editGroup,
-                    icon: const Icon(Icons.create_new_folder_outlined),
+                    icon: const Icon(LucideIcons.folderPlus),
                   ),
                 ],
               ),
@@ -290,8 +291,8 @@ class _ShareOrganizationDialogState extends State<ShareOrganizationDialog> {
                           const SizedBox(width: 8),
                           Icon(
                             share.kind == 'folder'
-                                ? Icons.folder_outlined
-                                : Icons.insert_drive_file_outlined,
+                                ? LucideIcons.folder
+                                : LucideIcons.file,
                             size: 18,
                           ),
                           const SizedBox(width: 8),

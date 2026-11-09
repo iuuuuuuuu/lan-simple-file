@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -15,11 +16,11 @@ class DevicePlatformLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<LanFileTokens>()!;
     final icon = switch (os.toLowerCase()) {
-      'windows' => Icons.desktop_windows_outlined,
-      'android' => Icons.phone_android,
-      'macos' => Icons.laptop_mac,
-      'ios' => Icons.phone_iphone,
-      _ => Icons.computer,
+      'windows' => LucideIcons.monitor,
+      'android' => LucideIcons.smartphone,
+      'macos' => LucideIcons.laptop,
+      'ios' => LucideIcons.smartphone,
+      _ => LucideIcons.monitor,
     };
     return AppTooltip(
       message: platformLabel(os),

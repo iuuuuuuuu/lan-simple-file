@@ -84,6 +84,37 @@ void main() {
   });
 
   test(
+    'placing a searched share preserves hidden items and joins target group',
+    () {
+      final hidden = item('hidden');
+      final next =
+          const ShareOrganization(
+            names: {'work': 'Work'},
+            assignments: {'z-folder': 'work', 'hidden': 'work'},
+            order: ['a-file', 'hidden', 'z-folder'],
+          ).place(
+            [file, hidden, folder],
+            share: file.id.value,
+            target: folder.id.value,
+            after: true,
+          );
+      expect(next.groupOf(file.id.value), 'work');
+      expect(next.arrange([file, folder, hidden]), [hidden, folder, file]);
+      expect(file.mode, ShareMode.people);
+      expect(file.groupId, 'private-access-group');
+      expect(
+        next.place(
+          [file],
+          share: file.id.value,
+          target: 'missing',
+          after: false,
+        ),
+        same(next),
+      );
+    },
+  );
+
+  test(
     'groups, assignments and both orders survive closing and reopening storage',
     () async {
       final sandbox = await Directory.systemTemp.createTemp(

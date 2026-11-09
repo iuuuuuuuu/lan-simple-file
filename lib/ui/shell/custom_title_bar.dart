@@ -11,6 +11,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -79,7 +80,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             widget.title,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: tokens.fgDim,
             ),
           ),
@@ -88,17 +89,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           if (CustomTitleBar.enabled) ...<Widget>[
             const SizedBox(width: 4),
             CaptionButton(
-              icon: Icons.remove,
+              icon: LucideIcons.minus,
               tooltip: '最小化',
               onTap: wc.minimizeWindow,
             ),
             CaptionButton(
-              icon: _maximized ? Icons.filter_none : Icons.crop_square,
+              icon: _maximized ? LucideIcons.copy : LucideIcons.square,
               tooltip: _maximized ? '还原' : '最大化',
               onTap: _toggleMaximize,
             ),
             CaptionButton(
-              icon: Icons.close,
+              icon: LucideIcons.x,
               tooltip: '关闭',
               danger: true,
               onTap: wc.closeWindow,

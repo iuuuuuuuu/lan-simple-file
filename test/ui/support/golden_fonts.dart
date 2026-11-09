@@ -57,18 +57,12 @@ Future<void> loadGoldenFonts() async {
       ),
     ),
   );
-  for (final family in [
-    'MaterialSymbolsOutlined',
-    'MaterialSymbolsRounded',
-    'MaterialSymbolsSharp',
-  ]) {
-    await load(
-      'packages/material_symbols_icons/$family',
-      File.fromUri(
-        packageRoot('material_symbols_icons').resolve('lib/fonts/$family.ttf'),
-      ),
-    );
-  }
+  await load(
+    'packages/lucide_icons_flutter/Lucide',
+    File.fromUri(
+      packageRoot('lucide_icons_flutter').resolve('assets/lucide.ttf'),
+    ),
+  );
 }
 
 ThemeData withCjkFont(ThemeData base) => base.copyWith(

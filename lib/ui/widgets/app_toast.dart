@@ -19,6 +19,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 import '../../app/theme/tokens.dart';
@@ -192,8 +193,8 @@ class _AppToastEntryState extends State<AppToastEntry>
                   children: [
                     Icon(
                       widget.isError
-                          ? Icons.error_outline
-                          : Icons.check_circle_outline,
+                          ? LucideIcons.circleAlert
+                          : LucideIcons.circleCheck,
                       size: 18,
                       color: widget.isError ? tokens.fgDim : tokens.accent,
                     ),
@@ -207,7 +208,7 @@ class _AppToastEntryState extends State<AppToastEntry>
                           fontSize: 12.5,
                           height: 1.4,
                           fontWeight: widget.isError
-                              ? FontWeight.w600
+                              ? FontWeight.w500
                               : FontWeight.w400,
                           color: tokens.fg,
                         ),
@@ -223,7 +224,7 @@ class _AppToastEntryState extends State<AppToastEntry>
                         minHeight: 28,
                       ),
                       onPressed: widget.onDismiss,
-                      icon: Icon(Icons.close, size: 14, color: tokens.fgDim),
+                      icon: Icon(LucideIcons.x, size: 14, color: tokens.fgDim),
                     ),
                   ],
                 ),

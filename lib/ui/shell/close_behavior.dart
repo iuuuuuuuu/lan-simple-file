@@ -19,6 +19,7 @@ class CloseBehavior extends ValueNotifier<CloseAction> {
     required this.hide,
     required this.exit,
     required this.reportError,
+    this.restore,
   }) : super(CloseAction.ask);
 
   static const settingKey = 'window.closeAction';
@@ -27,10 +28,13 @@ class CloseBehavior extends ValueNotifier<CloseAction> {
   final Future<CloseAction?> Function() choose;
   final Future<void> Function() hide;
   final Future<void> Function() exit;
+  final Future<void> Function()? restore;
   final void Function(Object) reportError;
   bool trayReady = false;
   bool _closing = false;
   bool _exited = false;
+  bool _exiting = false;
+  bool get exiting => _exiting;
 
   Future<void> hydrate() async {
     final saved = await read();
@@ -65,10 +69,20 @@ class CloseBehavior extends ValueNotifier<CloseAction> {
         }
         await hide();
       } else {
+        _exiting = true;
+        await hide();
         await exit();
         _exited = true;
       }
     } on Object catch (error) {
+      if (_exiting) {
+        _exiting = false;
+        try {
+          await restore?.call();
+        } on Object catch (restoreError) {
+          reportError(restoreError);
+        }
+      }
       reportError(error);
     } finally {
       _closing = false;

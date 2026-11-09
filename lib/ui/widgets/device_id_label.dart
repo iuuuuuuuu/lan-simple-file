@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -35,7 +36,7 @@ class DeviceIdLabel extends StatelessWidget {
           tooltip: '复制设备 ID',
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-          icon: Icon(Icons.copy_outlined, size: 13, color: tokens.fgDim),
+          icon: Icon(LucideIcons.copy, size: 13, color: tokens.fgDim),
           onPressed: PeerId.tryParse(id) == null
               ? null
               : () async {

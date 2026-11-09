@@ -76,7 +76,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(findAppTooltip('分组与排序'));
       await tester.pumpAndSettle();
-      await tester.tap(findAppTooltip('新建分享分组'));
+      await tester.tap(findAppTooltip('新建分享分组').last);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('share-group-name')),

@@ -141,7 +141,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('mobile-nav-shares')));
+    await tester.tap(find.byKey(const ValueKey('nav-shares')));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
@@ -249,7 +249,7 @@ void main() {
         await tester.tap(find.text('本机测试会话'));
         await tester.pumpAndSettle();
       } else {
-        await tester.tap(find.byKey(const ValueKey('mobile-nav-shares')));
+        await tester.tap(find.byKey(const ValueKey('nav-shares')));
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 100)),
         );

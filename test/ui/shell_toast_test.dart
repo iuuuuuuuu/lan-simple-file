@@ -147,7 +147,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('app-navigation')), findsOneWidget);
       expect(find.byKey(const ValueKey<String>('shell-list')), findsOneWidget);
       expect(find.byKey(kShellContentKey), findsOneWidget);
       expect(tester.takeException(), isNull);

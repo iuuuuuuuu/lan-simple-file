@@ -100,6 +100,63 @@ void main() {
     expect(errors, hasLength(1));
   });
 
+  test('退出先隐藏，慢速清理期间重复关闭不会再次执行', () async {
+    final cleanup = Completer<void>();
+    behavior = CloseBehavior(
+      read: () async => 'exit',
+      write: (_) async {},
+      choose: () async => null,
+      hide: () async => hides++,
+      exit: () {
+        exits++;
+        return cleanup.future;
+      },
+      reportError: errors.add,
+    );
+    await behavior.hydrate();
+    final pending = behavior.requestClose();
+    await Future<void>.delayed(Duration.zero);
+    expect(hides, 1);
+    expect(exits, 1);
+    expect(behavior.exiting, true);
+    await behavior.requestClose(forceExit: true);
+    expect(exits, 1);
+    cleanup.complete();
+    await pending;
+    await behavior.requestClose();
+    expect(exits, 1);
+    expect(errors, isEmpty);
+  });
+
+  test('清理失败恢复窗口并允许重试，成功后不再恢复', () async {
+    var restored = 0;
+    var fail = true;
+    behavior = CloseBehavior(
+      read: () async => 'exit',
+      write: (_) async {},
+      choose: () async => null,
+      hide: () async => hides++,
+      restore: () async {
+        expect(behavior.exiting, false);
+        restored++;
+      },
+      exit: () async {
+        exits++;
+        if (fail) throw StateError('cleanup failed');
+      },
+      reportError: errors.add,
+    );
+    await behavior.hydrate();
+    await behavior.requestClose();
+    expect(restored, 1);
+    expect(errors, hasLength(1));
+    fail = false;
+    await behavior.requestClose();
+    expect(exits, 2);
+    expect(hides, 2);
+    expect(restored, 1);
+  });
+
   testWidgets('设置修改关闭策略立即落库并生效', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

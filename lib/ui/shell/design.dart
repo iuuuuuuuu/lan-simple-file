@@ -36,11 +36,11 @@ enum SurfaceTier {
 
 /// 取分层底色。
 Color surfaceOf(LanFileTokens t, SurfaceTier tier) => switch (tier) {
-      SurfaceTier.rail => t.bg,
-      SurfaceTier.list => t.surfaceSunken,
-      SurfaceTier.content => t.bg,
-      SurfaceTier.card => t.surface,
-    };
+  SurfaceTier.rail => t.bg,
+  SurfaceTier.list => t.surfaceSunken,
+  SurfaceTier.content => t.bg,
+  SurfaceTier.card => t.surface,
+};
 
 // -------------------------------------------------------------- 卡片
 
@@ -49,37 +49,30 @@ Color surfaceOf(LanFileTokens t, SurfaceTier tier) => switch (tier) {
 /// 阴影只在明色加：暗色下黑影会被背景吞掉，反而让卡片边缘发脏；
 /// 暗色改用 cardLine 描边（tokens 里已按亮度调过强度）。
 BoxDecoration cardDecoration(LanFileTokens t) => BoxDecoration(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(LanFileMetrics.radiusCard),
-      border: Border.all(
-        color: t.cardLine,
-        width: LanFileMetrics.hairline,
-      ),
-      boxShadow: t.isDark
-          ? null
-          : <BoxShadow>[
-              // 只做「贴纸浮起 1mm」的暗示，多了会变廉价投影堆叠。
-              BoxShadow(
-                color: t.shadowColor,
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
-    );
+  color: t.surface,
+  borderRadius: BorderRadius.circular(LanFileMetrics.radiusCard),
+  border: Border.all(color: t.cardLine, width: LanFileMetrics.hairline),
+  boxShadow: t.isDark
+      ? null
+      : <BoxShadow>[
+          // 只做「贴纸浮起 1mm」的暗示，多了会变廉价投影堆叠。
+          BoxShadow(
+            color: t.shadowColor,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+);
 
 /// 浮层（遮罩内的提示框）装饰。
 BoxDecoration overlayDecoration(LanFileTokens t) => BoxDecoration(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(LanFileMetrics.radiusPanel),
-      border: Border.all(color: t.accent, width: 1.5),
-      boxShadow: <BoxShadow>[
-        BoxShadow(
-          color: t.shadowColor,
-          blurRadius: 18,
-          offset: const Offset(0, 6),
-        ),
-      ],
-    );
+  color: t.surface,
+  borderRadius: BorderRadius.circular(LanFileMetrics.radiusPanel),
+  border: Border.all(color: t.accent, width: 1.5),
+  boxShadow: <BoxShadow>[
+    BoxShadow(color: t.shadowColor, blurRadius: 18, offset: const Offset(0, 6)),
+  ],
+);
 
 // -------------------------------------------------------- 行三态反馈
 
@@ -105,9 +98,9 @@ BoxDecoration rowDecoration(LanFileTokens t, RowState state) {
     RowState.hovered => t.hoverSoft,
     RowState.selected => t.accentSoft,
     RowState.pressed => Color.alphaBlend(
-        t.accent.withValues(alpha: 0.16),
-        t.surface,
-      ),
+      t.accent.withValues(alpha: 0.16),
+      t.surface,
+    ),
   };
   return BoxDecoration(
     color: fill,
@@ -127,48 +120,42 @@ Color rowTitleColor(LanFileTokens t, RowState state) =>
 
 /// 名字：中字重 + 主前景。中文加一点字距让层级更清楚。
 TextStyle nameStyle(LanFileTokens t, {bool selected = false}) => TextStyle(
-      fontSize: 13.5,
-      fontWeight: FontWeight.w600,
-      height: 1.25,
-      letterSpacing: 0.1,
-      color: selected ? t.accent : t.fg,
-    );
+  fontSize: 13.5,
+  fontWeight: FontWeight.w500,
+  height: 1.25,
+  letterSpacing: 0,
+  color: selected ? t.accent : t.fg,
+);
 
 /// 摘要：更小字号 + 次级前景。
 TextStyle subtitleStyle(LanFileTokens t) => TextStyle(
-      fontSize: 11.5,
-      fontWeight: FontWeight.w400,
-      height: 1.3,
-      letterSpacing: 0.1,
-      color: t.fgDim,
-    );
+  fontSize: 11.5,
+  fontWeight: FontWeight.w400,
+  height: 1.3,
+  letterSpacing: 0,
+  color: t.fgDim,
+);
 
 /// 时间：最小号；靠字号弱化，不引入新颜色。
 TextStyle timeStyle(LanFileTokens t) => TextStyle(
-      fontSize: 10,
-      fontWeight: FontWeight.w400,
-      height: 1.2,
-      color: Color.alphaBlend(const Color(0x22000000), t.fgDim),
-    );
+  fontSize: 10,
+  fontWeight: FontWeight.w400,
+  height: 1.2,
+  color: Color.alphaBlend(const Color(0x22000000), t.fgDim),
+);
 
 /// 栏标题。
 TextStyle sectionTitleStyle(LanFileTokens t) => TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      letterSpacing: 0.2,
-      color: t.fg,
-    );
+  fontSize: 13,
+  fontWeight: FontWeight.w500,
+  letterSpacing: 0,
+  color: t.fg,
+);
 
 /// 空态标题。
-TextStyle emptyTitleStyle(LanFileTokens t) => TextStyle(
-      fontSize: 13.5,
-      fontWeight: FontWeight.w600,
-      color: t.fg,
-    );
+TextStyle emptyTitleStyle(LanFileTokens t) =>
+    TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: t.fg);
 
 /// 空态说明。
-TextStyle emptyBodyStyle(LanFileTokens t) => TextStyle(
-      fontSize: 11.5,
-      height: 1.65,
-      color: t.fgDim,
-    );
+TextStyle emptyBodyStyle(LanFileTokens t) =>
+    TextStyle(fontSize: 11.5, height: 1.65, color: t.fgDim);

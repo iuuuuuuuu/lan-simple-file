@@ -77,7 +77,7 @@ final class QrPanel extends StatelessWidget {
                 style: TextStyle(
                   color: t.fg,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -114,11 +114,7 @@ final class QrPanel extends StatelessWidget {
               linkText,
               key: const ValueKey<String>('qr-panel-link-text'),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: t.fgDim,
-                fontSize: 12,
-                height: 1.4,
-              ),
+              style: TextStyle(color: t.fgDim, fontSize: 12, height: 1.4),
             ),
           ],
         );

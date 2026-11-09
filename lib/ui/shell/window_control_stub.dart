@@ -42,6 +42,7 @@ Future<bool> isWindowMaximized() async => false;
 Future<bool> installDesktopLifecycle({
   required Future<void> Function() onClose,
   required Future<void> Function() onExit,
+  bool Function()? canShow,
   String logoAsset = 'assets/logos/c.ico',
 }) async => false;
 Future<void> setDesktopLogo(String imageAsset, String iconAsset) async {}

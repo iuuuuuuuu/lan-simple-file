@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/messaging/chat_search.dart';
 import 'app_controls.dart';
@@ -80,7 +81,7 @@ class _ChatSearchDialogState extends State<ChatSearchDialog> {
             key: const ValueKey('chat-history-search'),
             label: '搜索文字或文件名',
             placeholder: true,
-            leading: const Icon(Icons.search),
+            leading: const Icon(LucideIcons.search),
             onChanged: _changed,
             onSubmitted: (_) => _search(),
           ),
@@ -116,8 +117,8 @@ class _ChatSearchDialogState extends State<ChatSearchDialog> {
                         key: ValueKey('search-message-${hit.message.id}'),
                         leading: Icon(
                           isFileMessage(hit.message)
-                              ? Icons.description_outlined
-                              : Icons.chat_bubble_outline,
+                              ? LucideIcons.fileText
+                              : LucideIcons.messageCircle,
                         ),
                         title: Text(
                           hit.text,

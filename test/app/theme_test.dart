@@ -12,6 +12,35 @@ import 'package:lan_simple_file/app/theme/app_theme.dart';
 import 'package:lan_simple_file/app/theme/tokens.dart';
 
 void main() {
+  testWidgets(
+    'Miuix and page text share font family and regular/medium weights',
+    (tester) async {
+      for (final theme in [AppTheme.light, AppTheme.dark]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            builder: (_, child) => AppMiuixTheme(child: child!),
+            home: Builder(
+              builder: (context) {
+                final text = Theme.of(context).textTheme;
+                final miuix = MiuixTheme.of(context).textStyles;
+                expect(text.bodyMedium!.fontWeight, FontWeight.w400);
+                expect(text.labelLarge!.fontWeight, FontWeight.w400);
+                expect(text.titleMedium!.fontWeight, FontWeight.w500);
+                expect(miuix.body2.fontFamily, text.bodyMedium!.fontFamily);
+                expect(miuix.body2.fontWeight, FontWeight.w400);
+                expect(miuix.button.fontWeight, FontWeight.w400);
+                expect(miuix.subtitle.fontWeight, FontWeight.w500);
+                expect(miuix.title4.fontWeight, FontWeight.w500);
+                expect(miuix.body2.letterSpacing, 0);
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+      }
+    },
+  );
   group('LanFilePalette 色值', () {
     test('明色六个 token 与 Miuix 一致', () {
       const LanFileTokens t = LanFilePalette.light;

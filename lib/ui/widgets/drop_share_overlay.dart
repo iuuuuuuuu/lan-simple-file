@@ -12,6 +12,7 @@ library;
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../core/contracts/contracts.dart';
@@ -202,7 +203,7 @@ class _DropShareOverlayState extends State<DropShareOverlay> {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Icon(
-                            Icons.drive_folder_upload_outlined,
+                            LucideIcons.folderUp,
                             size: 36,
                             color: tokens.accent,
                           ),
@@ -213,7 +214,7 @@ class _DropShareOverlayState extends State<DropShareOverlay> {
                                 : widget.label,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color: tokens.fg,
                             ),
                           ),

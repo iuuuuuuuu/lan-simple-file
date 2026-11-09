@@ -66,48 +66,45 @@ Future<void> setViewport(WidgetTester tester, Size size) async {
 }
 
 void main() {
-  group('宽屏三栏', () {
-    testWidgets('>=1000px 时 rail / list / content 同时存在', (
-      WidgetTester tester,
-    ) async {
+  group('宽屏悬浮底栏', () {
+    testWidgets('桌面底栏与列表、会话同时存在，内容互不遮挡', (WidgetTester tester) async {
       await setViewport(tester, const Size(1280, 800));
       await tester.pumpWidget(
         wrapShell(QqShell(sessionSource: FakeSessionSource())),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('shell-rail')), findsNothing);
       expect(find.byKey(const ValueKey<String>('shell-list')), findsOneWidget);
       expect(find.byKey(kShellContentKey), findsOneWidget);
 
-      // 三栏真实并排：rail 在 list 左侧，list 在 content 左侧。
-      final Rect rail = tester.getRect(
-        find.byKey(const ValueKey<String>('shell-rail')),
+      final Rect navigation = tester.getRect(
+        find.byKey(const ValueKey<String>('app-navigation')),
       );
       final Rect list = tester.getRect(
         find.byKey(const ValueKey<String>('shell-list')),
       );
       final Rect content = tester.getRect(find.byKey(kShellContentKey));
-      expect(rail.right, lessThanOrEqualTo(list.left));
+      expect(list.left, 0);
       expect(list.right, lessThanOrEqualTo(content.left));
+      expect(content.bottom, lessThanOrEqualTo(navigation.top));
+      expect(find.byType(MiuixFloatingNavigationBarItem), findsNWidgets(4));
     });
 
-    testWidgets('rail 宽度落在 56-64px，list 宽度落在 260-300px', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('底栏居中且紧凑，list 宽度落在 260-300px', (WidgetTester tester) async {
       await setViewport(tester, const Size(1280, 800));
       await tester.pumpWidget(
         wrapShell(QqShell(sessionSource: FakeSessionSource())),
       );
       await tester.pumpAndSettle();
 
-      final double railWidth = tester
-          .getRect(find.byKey(const ValueKey<String>('shell-rail')))
-          .width;
+      final first = tester.getRect(find.byKey(const ValueKey('nav-nearby')));
+      final last = tester.getRect(find.byKey(const ValueKey('nav-settings')));
       final double listWidth = tester
           .getRect(find.byKey(const ValueKey<String>('shell-list')))
           .width;
-      expect(railWidth, inInclusiveRange(56, 64));
+      expect((first.left + last.right) / 2, closeTo(640, 1));
+      expect(last.right - first.left, lessThan(340));
       expect(listWidth, inInclusiveRange(260, 300));
     });
 
@@ -141,7 +138,10 @@ void main() {
         findsNothing,
       );
       // rail 与 content 仍在。
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('app-navigation')),
+        findsOneWidget,
+      );
       expect(find.byKey(kShellContentKey), findsOneWidget);
     });
 
@@ -170,11 +170,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey<String>('rail-self-avatar')),
+        find.byKey(const ValueKey<String>('shell-self-avatar')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey<String>('rail-settings')),
+        find.byKey(const ValueKey<String>('nav-settings')),
         findsOneWidget,
       );
 
@@ -183,7 +183,7 @@ void main() {
       // 断言改成真实设置页的标志性内容（GPL 声明在「关于」分组，永远在页面里），
       // 而不是旧占位文案——占位已被真实页面取代，此处保留的强度是
       // 「确实进到了设置页」而不是「进到了一个空壳」。
-      await tester.tap(find.byKey(const ValueKey<String>('rail-self-avatar')));
+      await tester.tap(find.byKey(const ValueKey<String>('shell-self-avatar')));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('GPL-3.0-only'),
@@ -192,9 +192,9 @@ void main() {
       );
 
       // 齿轮同样进设置（先切走再点）。
-      await tester.tap(find.byKey(const ValueKey<String>('rail-nearby')));
+      await tester.tap(find.byKey(const ValueKey<String>('nav-nearby')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey<String>('rail-settings')));
+      await tester.tap(find.byKey(const ValueKey<String>('nav-settings')));
       await tester.pumpAndSettle();
       expect(find.textContaining('GPL-3.0-only'), findsWidgets);
     });
@@ -205,7 +205,7 @@ void main() {
       await tester.pumpWidget(wrapShell(QqShell(sessionSource: source)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey<String>('rail-shares')));
+      await tester.tap(find.byKey(const ValueKey<String>('nav-shares')));
       await tester.pumpAndSettle();
       expect(source.queried, contains(ShellSection.shares));
       expect(find.byKey(const ValueKey<String>('shell-list')), findsNothing);
@@ -218,7 +218,10 @@ void main() {
       await tester.pumpWidget(wrapShell(const QqShell(services: null)));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey<String>('shell-rail')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('app-navigation')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey<String>('shell-list')), findsOneWidget);
       expect(find.byKey(kShellContentKey), findsOneWidget);
       expect(find.text('选择联系人或群聊'), findsOneWidget);
@@ -242,20 +245,17 @@ void main() {
             ? LanFilePalette.dark
             : LanFilePalette.light;
 
-        final railContext = tester.element(
-          find.byKey(const ValueKey('shell-rail')),
+        final navigationContext = tester.element(
+          find.byKey(const ValueKey('app-navigation')),
         );
-        final railColor = MiuixNavigationRailDefaults.colors(railContext)
-            .background;
-        // 最远层：页面底色。
-        expect(railColor, equals(expected.bg));
+        expect(MiuixTheme.of(navigationContext).brightness, brightness);
 
         final Container list = tester.widget<Container>(
           find.byKey(const ValueKey<String>('shell-list')),
         );
         // 中间层：surfaceSunken，必须与 rail 有明显明度差。
         expect(list.color, equals(expected.surfaceSunken));
-        expect(list.color, isNot(equals(railColor)), reason: '三块背景必须有可见层次差');
+        expect(list.color, isNot(equals(expected.bg)));
       }
     });
   });

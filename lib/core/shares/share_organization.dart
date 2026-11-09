@@ -59,6 +59,21 @@ final class ShareOrganization {
     );
   }
 
+  ShareOrganization place(
+    Iterable<ShareRecord> shares, {
+    required String share,
+    required String target,
+    required bool after,
+  }) {
+    final ids = arrange(shares).map((item) => item.id.value).toList();
+    if (share == target || !ids.contains(share) || !ids.contains(target)) {
+      return this;
+    }
+    ids.remove(share);
+    ids.insert(ids.indexOf(target) + (after ? 1 : 0), share);
+    return move([share], groupOf(target)).copyWith(order: ids);
+  }
+
   List<ShareRecord> arrange(Iterable<ShareRecord> shares, {String? group}) {
     final groupRanks = {for (final (i, id) in groups.indexed) id: i};
     final ranks = {for (final (i, id) in order.indexed) id: i};

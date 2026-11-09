@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -96,7 +97,7 @@ class _AndroidAllFilesSettingState extends State<AndroidAllFilesSetting>
             key: const ValueKey('all-files-settings'),
             tooltip: '文件访问授权设置',
             onPressed: open,
-            icon: const Icon(Icons.settings_outlined, size: 18),
+            icon: const Icon(LucideIcons.settings, size: 18),
           ),
         ],
       ),

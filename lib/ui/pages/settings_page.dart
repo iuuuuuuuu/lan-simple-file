@@ -14,6 +14,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -59,7 +60,7 @@ const String kAppName = '局域网简易文件';
 /// 版本号（M0–M7 全部落地）。
 const String kAppVersion = String.fromEnvironment(
   'APP_VERSION',
-  defaultValue: '0.1.0-beta.6',
+  defaultValue: '0.1.0-beta.8',
 );
 
 /// 许可标识。
@@ -768,17 +769,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         SettingRow(
                           label: '重新广播',
                           subtitle: '立即向局域网发一次探测，等待所有邻居回包',
-                          trailing: const Icon(
-                            Icons.campaign_outlined,
-                            size: 18,
-                          ),
+                          trailing: const Icon(LucideIcons.megaphone, size: 18),
                           onTap: _busy ? null : _probe,
                         ),
                         if (Platform.isWindows || widget.allowLanAccess != null)
                           SettingRow(
                             label: '允许局域网访问',
                             trailing: const Icon(
-                              Icons.security_outlined,
+                              LucideIcons.shieldCheck,
                               size: 18,
                             ),
                             onTap: _busy || snapshot.port == 0
@@ -954,14 +952,14 @@ class _ProfileCard extends StatelessWidget {
                         key: const ValueKey('edit-avatar-button'),
                         tooltip: '修改头像',
                         onPressed: busy ? null : onChangeAvatar,
-                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        icon: const Icon(LucideIcons.camera, size: 18),
                       ),
                     if (onResetAvatar != null)
                       AppIconButton(
                         key: const ValueKey('reset-avatar-button'),
                         tooltip: '恢复默认头像',
                         onPressed: busy ? null : onResetAvatar,
-                        icon: const Icon(Icons.restart_alt, size: 18),
+                        icon: const Icon(LucideIcons.rotateCcw, size: 18),
                       ),
                   ],
                 ),
@@ -979,7 +977,7 @@ class _ProfileCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: tokens.fg,
                   ),
                 ),
@@ -991,7 +989,7 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(width: 10),
           AppIconButton(
             tooltip: '修改昵称',
-            icon: Icon(Icons.edit_outlined, size: 18, color: tokens.fgDim),
+            icon: Icon(LucideIcons.pencil, size: 18, color: tokens.fgDim),
             onPressed: busy ? null : onEditNickname,
           ),
         ],

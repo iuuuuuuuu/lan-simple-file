@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -45,7 +46,7 @@ class _SharePickerDialogState extends State<SharePickerDialog> {
               onChanged: (text) => setState(() => _query = text),
               label: '搜索分享名称或文件位置',
               placeholder: true,
-              leading: Icon(Icons.search),
+              leading: Icon(LucideIcons.search),
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -63,8 +64,8 @@ class _SharePickerDialogState extends State<SharePickerDialog> {
                           key: ValueKey('pick-share-${share.id.value}'),
                           leading: Icon(
                             share.kind == 'file'
-                                ? Icons.insert_drive_file_outlined
-                                : Icons.folder_outlined,
+                                ? LucideIcons.file
+                                : LucideIcons.folder,
                           ),
                           title: Text(
                             share.displayName,

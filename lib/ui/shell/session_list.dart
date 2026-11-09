@@ -12,6 +12,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../widgets/app_controls.dart';
 
@@ -208,8 +209,8 @@ class _SessionListState extends State<SessionList> {
                         children: [
                           Icon(
                             _collapsed.contains(entry.key)
-                                ? Icons.chevron_right
-                                : Icons.expand_more,
+                                ? LucideIcons.chevronRight
+                                : LucideIcons.chevronDown,
                             size: 18,
                             color: tokens.fgDim,
                           ),
@@ -322,7 +323,11 @@ class _SessionListState extends State<SessionList> {
                 style: TextStyle(fontSize: 12.5, color: tokens.fg),
                 label: widget.hint,
                 placeholder: true,
-                leading: Icon(Icons.search, size: 15, color: tokens.fgDim),
+                leading: Icon(
+                  LucideIcons.search,
+                  size: 15,
+                  color: tokens.fgDim,
+                ),
                 trailing: _query.isEmpty
                     ? null
                     : AppIconButton(
@@ -332,7 +337,11 @@ class _SessionListState extends State<SessionList> {
                           minWidth: 28,
                           minHeight: 28,
                         ),
-                        icon: Icon(Icons.close, size: 14, color: tokens.fgDim),
+                        icon: Icon(
+                          LucideIcons.x,
+                          size: 14,
+                          color: tokens.fgDim,
+                        ),
                         onPressed: () {
                           _search.clear();
                           setState(() => _query = '');
@@ -528,7 +537,7 @@ class _ListEmpty extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Icon(
-              searching ? Icons.search_off : Icons.inbox_outlined,
+              searching ? LucideIcons.searchX : LucideIcons.inbox,
               size: 28,
               color: tokens.fgDim,
             ),

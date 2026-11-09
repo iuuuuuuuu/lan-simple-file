@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/miuix_test_support.dart';
@@ -18,7 +19,7 @@ void main() {
           body: Builder(
             builder: (context) => IconButton(
               key: const ValueKey('open-picker'),
-              icon: const Icon(Icons.add),
+              icon: const Icon(LucideIcons.plus),
               onPressed: () async {
                 selected.add(await showShareUploadSheet(context));
               },

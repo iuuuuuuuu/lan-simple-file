@@ -2,6 +2,7 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/app/theme/app_theme.dart';
@@ -217,7 +218,7 @@ void main() {
       Widget page(bool enabled) => harness(
         AppIconButton(
           onPressed: enabled ? () => calls++ : null,
-          icon: const Icon(Icons.copy),
+          icon: const Icon(LucideIcons.copy),
         ),
       );
       await tester.pumpWidget(page(true));

@@ -61,9 +61,7 @@ void main() {
       addTearDown(messaging.updates.close);
       await tester.pumpWidget(wrapShell(QqShell(messaging: messaging)));
       await tester.pumpAndSettle();
-      final badge = find.byKey(
-        ValueKey(mobile ? 'mobile-chat-unread' : 'desktop-chat-unread'),
-      );
+      final badge = find.byKey(const ValueKey('chat-unread'));
       messaging.threads.add([
         thread('a', 3),
         thread('b', 2),
@@ -76,7 +74,7 @@ void main() {
         findsOneWidget,
       );
       if (mobile) {
-        await tester.tap(find.byKey(const ValueKey('mobile-nav-settings')));
+        await tester.tap(find.byKey(const ValueKey('nav-settings')));
         await tester.pumpAndSettle();
       }
       messaging.threads.add([thread('a', 99), thread('b', 2)]);
@@ -107,7 +105,7 @@ void main() {
           .color,
       t.surfaceSunken,
     );
-    await tester.tap(find.byKey(const ValueKey('mobile-nav-settings')));
+    await tester.tap(find.byKey(const ValueKey('nav-settings')));
     await tester.pumpAndSettle();
     expect(
       tester

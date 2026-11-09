@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/contracts/contracts.dart';
@@ -220,14 +221,14 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
             AppIconButton(
               tooltip: '关闭',
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close),
+              icon: const Icon(LucideIcons.x),
             ),
           ],
         ),
         actions: [
           AppButton.icon(
             onPressed: _copying ? null : _link,
-            icon: const Icon(Icons.open_in_browser, size: 18),
+            icon: const Icon(LucideIcons.externalLink, size: 18),
             label: const Text('在浏览器打开'),
           ),
         ],
@@ -246,7 +247,7 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                     key: const ValueKey('peer-shares-back'),
                     tooltip: '返回上一级',
                     onPressed: _back,
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(LucideIcons.arrowLeft),
                   ),
                 Expanded(
                   child: Text(
@@ -260,12 +261,12 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                 AppIconButton(
                   tooltip: '刷新分享',
                   onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(LucideIcons.refreshCw),
                 ),
                 AppIconButton(
                   tooltip: '复制网页链接',
                   onPressed: _copying ? null : () => _link(copy: true),
-                  icon: const Icon(Icons.link),
+                  icon: const Icon(LucideIcons.link),
                 ),
               ],
             ),
@@ -284,7 +285,7 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                     ),
                     AppMenuButton<String>(
                       tooltip: '筛选对方分享分组',
-                      icon: const Icon(Icons.filter_list),
+                      icon: const Icon(LucideIcons.listFilter),
                       itemBuilder: (_) => [
                         const AppMenuItem(value: '*', label: '全部分组'),
                         for (final group in _catalog!.groups.entries)
@@ -341,9 +342,7 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
               for (final share in shares)
                 AppListTile(
                   leading: Icon(
-                    share.isDirectory
-                        ? Icons.folder_outlined
-                        : Icons.insert_drive_file_outlined,
+                    share.isDirectory ? LucideIcons.folder : LucideIcons.file,
                   ),
                   title: Text(
                     share.name,
@@ -358,7 +357,9 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                         : '${_catalog?.groups[share.collectionId] ?? '未分组'} · 文件',
                   ),
                   trailing: Icon(
-                    share.id == null ? Icons.lock_outline : Icons.chevron_right,
+                    share.id == null
+                        ? LucideIcons.lockKeyhole
+                        : LucideIcons.chevronRight,
                   ),
                   onTap: share.id == null
                       ? null
@@ -374,9 +375,7 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
               for (final entry in _entries)
                 AppListTile(
                   leading: Icon(
-                    entry.isDirectory
-                        ? Icons.folder_outlined
-                        : Icons.insert_drive_file_outlined,
+                    entry.isDirectory ? LucideIcons.folder : LucideIcons.file,
                   ),
                   title: Text(
                     entry.name,
@@ -387,13 +386,13 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                     entry.isDirectory ? '文件夹' : humanSize(entry.size),
                   ),
                   trailing: entry.isDirectory
-                      ? const Icon(Icons.chevron_right)
+                      ? const Icon(LucideIcons.chevronRight)
                       : AppIconButton(
                           tooltip: '复制下载链接',
                           onPressed: _copying
                               ? null
                               : () => _link(file: entry, copy: true),
-                          icon: const Icon(Icons.content_copy),
+                          icon: const Icon(LucideIcons.copy),
                         ),
                   onTap: entry.isDirectory
                       ? () {

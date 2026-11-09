@@ -11,6 +11,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_controls.dart';
 
@@ -211,7 +212,7 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
     // 源已失效：给明确文案，而不是空白列表。
     if (widget.share.missing) {
       return _Hint(
-        icon: Icons.link_off,
+        icon: LucideIcons.unlink,
         title: '已失效，无法浏览',
         body:
             '这条分享的源文件在提供者侧被移动或删除了。'
@@ -242,7 +243,7 @@ class _ShareDetailPanelState extends State<ShareDetailPanel> {
           )
         else if (_entries.isEmpty)
           _Hint(
-            icon: Icons.folder_open_outlined,
+            icon: LucideIcons.folderOpen,
             title: '这个文件夹是空的',
             body: _path == null ? '分享根下没有可见的文件或子目录。' : '该目录下没有可见的文件或子目录。',
           )
@@ -300,7 +301,7 @@ class _Breadcrumb extends StatelessWidget {
           if (segments.isNotEmpty)
             AppIconButton(
               tooltip: '返回上一级',
-              icon: Icon(Icons.arrow_upward, size: 16, color: tokens.fgDim),
+              icon: Icon(LucideIcons.arrowUp, size: 16, color: tokens.fgDim),
               onPressed: onRoot,
             ),
           Flexible(
@@ -349,7 +350,7 @@ class _EntryRowState extends State<_EntryRow> {
       child: Row(
         children: <Widget>[
           Icon(
-            e.isDirectory ? Icons.folder_outlined : Icons.description_outlined,
+            e.isDirectory ? LucideIcons.folder : LucideIcons.fileText,
             size: 16,
             color: tokens.fgDim,
           ),
@@ -371,11 +372,7 @@ class _EntryRowState extends State<_EntryRow> {
             const SizedBox(width: 2),
             AppIconButton(
               tooltip: '打开文件所在位置',
-              icon: Icon(
-                Icons.folder_open_outlined,
-                size: 16,
-                color: tokens.fgDim,
-              ),
+              icon: Icon(LucideIcons.folderOpen, size: 16, color: tokens.fgDim),
               onPressed: () => widget.onReveal!(e),
             ),
           ],
@@ -383,11 +380,7 @@ class _EntryRowState extends State<_EntryRow> {
             const SizedBox(width: 4),
             AppIconButton(
               tooltip: '下载',
-              icon: Icon(
-                Icons.download_outlined,
-                size: 16,
-                color: tokens.fgDim,
-              ),
+              icon: Icon(LucideIcons.download, size: 16, color: tokens.fgDim),
               onPressed: () => widget.onDownload!(e),
             ),
           ],
@@ -421,7 +414,7 @@ class _Hint extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: tokens.fg,
             ),
           ),

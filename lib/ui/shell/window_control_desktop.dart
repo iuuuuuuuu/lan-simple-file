@@ -77,9 +77,10 @@ _DesktopLifecycle? _lifecycle;
 Future<bool> installDesktopLifecycle({
   required Future<void> Function() onClose,
   required Future<void> Function() onExit,
+  bool Function()? canShow,
   String logoAsset = 'assets/logos/c.ico',
 }) async {
-  final listener = _DesktopLifecycle(onClose, onExit);
+  final listener = _DesktopLifecycle(onClose, onExit, canShow);
   _lifecycle = listener;
   windowManager.addListener(listener);
   await windowManager.setPreventClose(true);
@@ -114,6 +115,7 @@ Future<void> setDesktopLogo(String imageAsset, String iconAsset) async {
 }
 
 Future<void> showDesktopWindow() async {
+  if (_lifecycle?.canShow?.call() == false) return;
   if (await windowManager.isMinimized()) await windowManager.restore();
   await windowManager.show();
   await windowManager.focus();
@@ -139,9 +141,10 @@ Future<void> destroyDesktopWindow() async {
 }
 
 class _DesktopLifecycle with WindowListener, TrayListener {
-  _DesktopLifecycle(this.close, this.exit);
+  _DesktopLifecycle(this.close, this.exit, this.canShow);
   final Future<void> Function() close;
   final Future<void> Function() exit;
+  final bool Function()? canShow;
 
   @override
   void onWindowClose() => unawaited(close());

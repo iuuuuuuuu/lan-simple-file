@@ -3,6 +3,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 
@@ -354,7 +355,7 @@ class AppMenuButton<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppIconButton(
     tooltip: tooltip,
-    icon: icon ?? const Icon(Icons.more_horiz),
+    icon: icon ?? const Icon(LucideIcons.ellipsis),
     iconSize: iconSize,
     padding: padding,
     constraints: constraints,
@@ -480,7 +481,7 @@ class AppDialog extends StatelessWidget {
                 child: DefaultTextStyle.merge(
                   style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                   child: title!,
                 ),

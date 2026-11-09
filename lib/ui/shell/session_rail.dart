@@ -2,6 +2,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme/tokens.dart';
 import '../widgets/app_controls.dart';
@@ -10,11 +11,11 @@ import '../widgets/avatar_badge.dart';
 const double kRailWidth = LanFileMetrics.railWidth;
 
 enum ShellSection {
-  nearby('附近的人', Icons.chat_bubble_outline, Icons.chat_bubble),
-  groups('群聊', Icons.groups_outlined, Icons.groups),
-  shares('我的分享', Icons.folder_outlined, Icons.folder),
-  transfers('传输记录', Icons.history_outlined, Icons.history),
-  settings('设置', Icons.settings_outlined, Icons.settings);
+  nearby('附近的人', LucideIcons.messageCircle, LucideIcons.messageCircle),
+  groups('群聊', LucideIcons.users, LucideIcons.users),
+  shares('我的分享', LucideIcons.folder, LucideIcons.folder),
+  transfers('传输记录', LucideIcons.history, LucideIcons.history),
+  settings('设置', LucideIcons.settings, LucideIcons.settings);
 
   const ShellSection(this.label, this.icon, this.selectedIcon);
   final String label;
