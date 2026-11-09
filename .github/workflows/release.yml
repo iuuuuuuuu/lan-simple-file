@@ -51,6 +51,19 @@ jobs:
             throw 'Release notes are missing.'
           }
       - run: flutter pub get
+      - name: Load build helpers from the workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .build-tools
+          sparse-checkout: |
+            tool/cache_sqlite_assets.py
+            tool/test_cache_sqlite_assets.py
+          sparse-checkout-cone-mode: false
+      - name: Verify dependency cache failure handling
+        run: python -m unittest discover -s .build-tools/tool -p test_cache_sqlite_assets.py
+      - name: Verify and cache SQLite native assets
+        run: python .build-tools/tool/cache_sqlite_assets.py --platform windows
       - run: flutter analyze --no-pub
       - name: Serial functional regression
         run: flutter test --no-pub --concurrency=1 --exclude-tags=golden
@@ -77,6 +90,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_REVISION }}
           cache: true
       - run: flutter pub get
+      - name: Load build helpers from the workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .build-tools
+          sparse-checkout: tool/cache_sqlite_assets.py
+          sparse-checkout-cone-mode: false
+      - name: Verify and cache SQLite native assets
+        run: python .build-tools/tool/cache_sqlite_assets.py --platform windows
       - name: Build and verify isolated desktop startup
         shell: pwsh
         run: |
@@ -136,6 +158,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_REVISION }}
           cache: true
       - run: flutter pub get
+      - name: Load build helpers from the workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .build-tools
+          sparse-checkout: tool/cache_sqlite_assets.py
+          sparse-checkout-cone-mode: false
+      - name: Verify and cache SQLite native assets
+        run: python .build-tools/tool/cache_sqlite_assets.py --platform android
       - name: Generate release plugin registration
         run: |
           flutter build apk --release --config-only
