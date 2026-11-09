@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.15)
+project(installer_tools LANGUAGES CXX)
+add_executable(installer_shutdown WIN32 installer_shutdown.cpp)
+target_compile_features(installer_shutdown PRIVATE cxx_std_17)
+target_compile_definitions(installer_shutdown PRIVATE UNICODE _UNICODE NOMINMAX)
+target_link_libraries(installer_shutdown PRIVATE Rstrtmgr shell32)
+set_property(TARGET installer_shutdown PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

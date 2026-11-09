@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lan_simple_file/app/app.dart';
 import 'package:lan_simple_file/app/assembly.dart';
+import 'package:lan_simple_file/core/diagnostics/network_log.dart';
 import 'package:lan_simple_file/ui/pages/home_page.dart';
 import 'package:lan_simple_file/ui/shell/close_behavior.dart';
 import 'package:lan_simple_file/ui/shell/custom_title_bar.dart';
@@ -19,6 +20,7 @@ Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   final dir = Directory(arguments[0]);
   final mode = arguments[1];
+  NetworkLog.active = NetworkLog(dir);
   AppServices? services;
   try {
     await initDesktopWindow();
@@ -59,7 +61,8 @@ Future<void> main(List<String> arguments) async {
     }
     if (close?.trayReady != true) throw StateError('Tray did not initialize');
     await Future<void>.delayed(const Duration(milliseconds: 750));
-    final shouldShow = mode == 'normal' || mode == 'show';
+    final shouldShow =
+        mode == 'normal' || mode == 'show' || mode.startsWith('installer');
     if (await windowManager.isVisible() != shouldShow) {
       throw StateError('Unexpected initial window visibility for $mode');
     }
@@ -74,6 +77,18 @@ Future<void> main(List<String> arguments) async {
       }
     } finally {
       client.close(force: true);
+    }
+    if (mode.startsWith('installer')) {
+      if (mode == 'installer-tray') {
+        await close!.setAction(CloseAction.tray);
+        await close!.requestClose();
+      }
+      await services.store.setSetting('installer.persisted', mode);
+      await File('${dir.path}/ready').writeAsString('tray=true;http=200');
+      // The installer must exit this real Flutter process, including when its
+      // saved close action is "ask" or it is hidden in the tray.
+      await Future<void>.delayed(const Duration(minutes: 3));
+      throw StateError('Installer did not close the client');
     }
     await File('${dir.path}/ready').writeAsString('tray=true;http=200');
     final proceed = File('${dir.path}/continue');

@@ -22,6 +22,8 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/legacy.dart';
 import 'package:tray_manager/legacy.dart';
 
+import '../../core/diagnostics/network_log.dart';
+
 // 全文件忽略 deprecated：本文件刻意选择 legacy API（见文件头理由），
 // 逐行加 ignore 只会把真正的新告警淹掉。
 // ignore_for_file: deprecated_member_use
@@ -73,6 +75,7 @@ Future<void> closeWindow() => windowManager.close();
 Future<bool> isWindowMaximized() => windowManager.isMaximized();
 
 _DesktopLifecycle? _lifecycle;
+bool _exitingForUpdate = false;
 
 Future<bool> installDesktopLifecycle({
   required Future<void> Function() onClose,
@@ -82,6 +85,26 @@ Future<bool> installDesktopLifecycle({
 }) async {
   final listener = _DesktopLifecycle(onClose, onExit, canShow);
   _lifecycle = listener;
+  if (Platform.isWindows) {
+    const MethodChannel('lan_simple_file/window')
+        .setMethodCallHandler((call) async {
+          if (call.method == 'shutdownForUpdate' && !_exitingForUpdate) {
+            _exitingForUpdate = true;
+            NetworkLog.record('window.update_exit');
+            // Complete the incoming platform call before destroying its engine.
+            unawaited(
+              Future<void>(() async {
+                try {
+                  await NetworkLog.active?.flush();
+                  await onExit();
+                } finally {
+                  _exitingForUpdate = false;
+                }
+              }),
+            );
+          }
+        });
+  }
   windowManager.addListener(listener);
   await windowManager.setPreventClose(true);
   trayManager.addListener(listener);
@@ -122,6 +145,7 @@ Future<void> showDesktopWindow() async {
 }
 
 Future<void> destroyDesktopWindow() async {
+  NetworkLog.record('window.destroy_requested');
   final listener = _lifecycle;
   if (listener != null) {
     windowManager.removeListener(listener);
@@ -129,15 +153,17 @@ Future<void> destroyDesktopWindow() async {
     _lifecycle = null;
   }
   await windowManager.setPreventClose(false);
+  NetworkLog.record('window.prevent_close_disabled');
   await trayManager.destroy();
+  NetworkLog.record('window.tray_destroyed');
+  await NetworkLog.active?.flush();
   if (Platform.isWindows) {
-    // Defer native teardown until the platform message returns. Synchronous
-    // FFI window destruction can shut down Flutter while Dart is on its stack.
-    await const MethodChannel('lan_simple_file/window')
-        .invokeMethod<void>('destroy');
-  } else {
-    await windowManager.destroy();
+    // CloseBehavior's exit callback has already closed the store and services.
+    // Flutter engine teardown can retain the executable after the window hides;
+    // finish the process after application and tray cleanup are complete.
+    exit(0);
   }
+  await windowManager.destroy();
 }
 
 class _DesktopLifecycle with WindowListener, TrayListener {

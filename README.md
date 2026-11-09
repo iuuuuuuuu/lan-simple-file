@@ -6,6 +6,7 @@
 
 网页“下载 Windows 安装程序”提供 Setup EXE，运行后安装到当前用户目录，
 并注册开始菜单与卸载入口。安装后的客户端会保存一份安装程序供网页下载。
+升级安装会自动退出安装目录里的客户端后继续安装，支持托盘运行；其他目录的便携版不会被关闭。
 GitHub Releases 同时提供 Windows x64 安装程序与便携 ZIP。
 便携 ZIP 不包含安装程序，网页客户端下载功能需要使用安装版。
 安装程序不包含发布者的昵称、头像、聊天记录或分享文件。
@@ -110,7 +111,10 @@ flutter test integration_test/android_http_discovery_test.dart -d 127.0.0.1:1638
 完成后需重新安装正常客户端 APK，避免留下集成测试入口。
 
 Windows 安装程序源码在 tool/windows_installer.iss，使用 Inno Setup 编译；
-传入 RuntimeDir（Flutter release 目录）和 OutputDir（安装程序输出目录）。
+传入 RuntimeDir（Flutter release 目录）、OutputDir（安装程序输出目录）、AppVersion，
+以及 ShutdownHelper（自动退出工具的路径）。先用 CMake 构建 test/windows，工具位于
+构建目录的 installer-tools/Release/installer_shutdown.exe。
+tool/test_windows_installer.ps1 在独立桌面验证覆盖安装，不操作用户桌面。
 
 ### 安卓发布签名
 

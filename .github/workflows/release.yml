@@ -111,6 +111,7 @@ jobs:
           flutter build windows --release --no-pub --target=test/windows/startup_probe.dart
           if ($LASTEXITCODE -ne 0) { throw 'Startup probe build failed.' }
           ./tool/test_windows_startup.ps1 -ProbeExecutable build/windows/x64/runner/Release/lan_simple_file.exe
+          Copy-Item -LiteralPath build/windows/x64/runner/Release -Destination build/installer-probe -Recurse
       - run: flutter build windows --release --no-pub --target=lib/main.dart --dart-define=NETWORK_DIAGNOSTICS=true
       - name: Build installer and verify portable ZIP
         shell: pwsh
@@ -129,8 +130,10 @@ jobs:
           }
           python tool/package_windows_release.py --runtime $runtime --output $dist --version $version
           if ($LASTEXITCODE -ne 0) { throw 'Portable package verification failed.' }
-          & $iscc "/DRuntimeDir=$runtime" "/DOutputDir=$dist" "/DAppVersion=$version" tool/windows_installer.iss
+          $shutdownHelper = Join-Path $PWD 'build/native-drop-tests/installer-tools/Release/installer_shutdown.exe'
+          & $iscc "/DRuntimeDir=$runtime" "/DOutputDir=$dist" "/DAppVersion=$version" "/DShutdownHelper=$shutdownHelper" tool/windows_installer.iss
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+          ./tool/test_windows_installer.ps1 -RuntimeDir $runtime -ProbeExecutable build/installer-probe/lan_simple_file.exe -Compiler $iscc
           Move-Item -LiteralPath "$dist/lan-simple-file-setup.exe" -Destination "$dist/lan-simple-file-$version-windows-x64-setup.exe"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

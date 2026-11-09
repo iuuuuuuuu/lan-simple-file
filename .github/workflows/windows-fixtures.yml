@@ -33,6 +33,10 @@ on:
       - windows/runner/**
       - test/windows/**
       - tool/test_windows_file_drop.ps1
+      - tool/windows/**
+      - tool/windows_installer.iss
+      - tool/test_windows_installer.ps1
+      - tool/verify_installer_data.py
       - .github/workflows/windows-fixtures.yml
   workflow_dispatch:
 

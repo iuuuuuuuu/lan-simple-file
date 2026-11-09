@@ -70,6 +70,27 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  static const UINT update_shutdown =
+      RegisterWindowMessageW(L"LanSimpleFile.ShutdownForUpdate.v1");
+  static const UINT dispatch_update_shutdown =
+      RegisterWindowMessageW(L"LanSimpleFile.DispatchUpdateShutdown.v1");
+  if (message == update_shutdown && window_channel_) {
+    // Leave a foreign process's synchronous SendMessage stack before calling Dart.
+    return PostMessageW(hwnd, dispatch_update_shutdown, 0, 0) ? 1 : 0;
+  }
+  if (message == dispatch_update_shutdown && window_channel_) {
+    window_channel_->InvokeMethod("shutdownForUpdate", nullptr);
+    return 0;
+  }
+  if ((lparam & ENDSESSION_CLOSEAPP) != 0) {
+    if (message == WM_QUERYENDSESSION) return TRUE;
+    if (message == WM_ENDSESSION && wparam && window_channel_) {
+      // Restart Manager is upgrading the app. Bypass close-to-tray preferences,
+      // but let Dart flush the store and stop services before destroying Flutter.
+      PostMessageW(hwnd, dispatch_update_shutdown, 0, 0);
+      return 0;
+    }
+  }
   if (message == WM_DROPFILES && elevated_file_drop_ && flutter_controller_) {
     const auto drop = ReadNativeFileDrop(
         reinterpret_cast<HDROP>(wparam), hwnd,
