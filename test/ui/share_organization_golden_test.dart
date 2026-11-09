@@ -64,7 +64,7 @@ void main() {
                 onCreateShare: () async {},
                 organizationSource: groups,
                 homeLink: () async => Uri.parse(
-                  'http://haohaochifan.p-aaaaaaaaaaaaa.local:47778/',
+                  'http://haohaochifan--p-aaaaaaaaaaaaa.local:47778/',
                 ),
               ),
             ),

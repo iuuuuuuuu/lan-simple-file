@@ -92,20 +92,17 @@ void main() {
   test('same names keep distinct complete identity labels and high ports', () {
     final a = localDomainName('Xiaomi 15 Pro', 'p_aaaaaaaaaaaaa');
     final b = localDomainName('Xiaomi 15 Pro', 'p_bbbbbbbbbbbbb');
-    expect(a, 'xiaomi-15-pro.p-aaaaaaaaaaaaa.local');
-    expect(b, 'xiaomi-15-pro.p-bbbbbbbbbbbbb.local');
+    expect(a, 'xiaomi-15-pro--p-aaaaaaaaaaaaa.local');
+    expect(b, 'xiaomi-15-pro--p-bbbbbbbbbbbbb.local');
     expect(a, isNot(b));
-    expect(
-      localDomainName('好好吃饭', 'p_aaaaaaaaaaaaa'),
-      endsWith('.p-aaaaaaaaaaaaa.local'),
-    );
+    expect(localDomainName('好好吃饭', 'p_aaaaaaaaaaaaa'), startsWith('xn--'));
     expect(
       localDomainName('Renamed', 'p_aaaaaaaaaaaaa'),
-      'renamed.p-aaaaaaaaaaaaa.local',
+      'renamed--p-aaaaaaaaaaaaa.local',
     );
     expect(
       buildWebHomeUrl(host: '10.1.1.2', port: 47778, localDomain: a).toString(),
-      'http://xiaomi-15-pro.p-aaaaaaaaaaaaa.local:47778/',
+      'http://xiaomi-15-pro--p-aaaaaaaaaaaaa.local:47778/',
     );
     for (final invalid in [
       'a.b.c.local',
@@ -132,6 +129,67 @@ void main() {
     );
     expect(url.toString(), 'http://alice.local/s/share123?k=abc');
     expect(url.hasPort, isFalse);
+  });
+
+  test('Chinese nickname and complete identity share one valid IDNA label', () {
+    expect(
+      localDomainName('好好吃饭', 'p_aaaaaaaaaaaaa'),
+      'xn----p-aaaaaaaaaaaaa-6e82ac57ea34845a.local',
+    );
+    expect(
+      localDomainName('bücher', 'p_aaaaaaaaaaaaa'),
+      'xn--bcher--p-aaaaaaaaaaaaa-slc.local',
+    );
+    expect(
+      localDomainName('', 'p_aaaaaaaaaaaaa'),
+      'user--p-aaaaaaaaaaaaa.local',
+    );
+    for (final nickname in ['a' * 100, '好好吃饭' * 30, 'a' * 44 + '-']) {
+      for (final conflicts in [0, 8]) {
+        final host = localDomainName(
+          nickname,
+          'p_aaaaaaaaaaaaa',
+          conflicts: conflicts,
+        );
+        expect(host.split('.'), hasLength(2));
+        expect(host.split('.').first.length, lessThanOrEqualTo(63));
+        expect(host, contains('p-aaaaaaaaaaaaa'));
+        expect(isLocalDomain(host), isTrue);
+        expect(
+          host,
+          isNot(
+            localDomainName(nickname, 'p_bbbbbbbbbbbbb', conflicts: conflicts),
+          ),
+        );
+      }
+    }
+    expect(isLocalDomain('alice.p-aaaaaaaaaaaaa.local'), isTrue);
+    expect(
+      () => localDomainName('alice', 'p_bad/domain'),
+      throwsFormatException,
+    );
+  });
+
+  test('long Unicode nickname changes refresh the canonical name', () async {
+    var nickname = '好好吃饭' * 20;
+    final instance = LocalDomainService(
+      username: () => nickname,
+      deviceId: 'p_aaaaaaaaaaaaa',
+      address: () async => '10.1.1.2',
+      listenPort: 0,
+      multicast: false,
+    );
+    try {
+      await instance.start();
+      final before = instance.host;
+      nickname = '好好睡觉' * 20;
+      await instance.refresh();
+      expect(instance.ready, isTrue);
+      expect(instance.host, isNot(before));
+      expect(instance.host, localDomainName(nickname, 'p_aaaaaaaaaaaaa'));
+    } finally {
+      await instance.stop();
+    }
   });
 
   test('真实 DNS 压缩名称能够解码，循环指针及截断报文必须丢弃', () {
@@ -262,12 +320,12 @@ void main() {
   test('UDP 查询返回本机地址，保留 legacy ID，AAAA 给出 NSEC 而非伪造 IPv6', () async {
     await boot();
     expect(service.ready, isTrue);
-    final reply = await query('alice.p-device123456.local');
+    final reply = await query('alice--p-device123456.local');
     expect(reply.id, 42);
-    expect(reply.questions.single.name, 'alice.p-device123456.local');
+    expect(reply.questions.single.name, 'alice--p-device123456.local');
     expect(reply.answers.single.data, [10, 1, 1, 2]);
     expect(reply.answers.single.ttl, 10);
-    final ipv6 = await query('alice.p-device123456.local', type: 28);
+    final ipv6 = await query('alice--p-device123456.local', type: 28);
     expect(ipv6.answers.single.type, 47);
     expect(ipv6.answers.single.data.last, 0x40);
     await expectLater(
@@ -280,15 +338,15 @@ void main() {
     await boot();
     username = 'alice-beta';
     await service.refresh();
-    expect(service.host, 'alice-beta.p-device123456.local');
+    expect(service.host, 'alice-beta--p-device123456.local');
     username = 'alice';
     await service.refresh();
-    expect(service.host, 'alice.p-device123456.local');
+    expect(service.host, 'alice--p-device123456.local');
     username = 'bob';
     ip = '10.1.1.3';
     await service.refresh();
-    expect(service.host, 'bob.p-device123456.local');
-    expect((await query('bob.p-device123456.local')).answers.single.data, [
+    expect(service.host, 'bob--p-device123456.local');
+    expect((await query('bob--p-device123456.local')).answers.single.data, [
       10,
       1,
       1,
@@ -308,7 +366,7 @@ void main() {
       response: true,
       answers: [
         DnsRecord(
-          'alice.p-device123456.local',
+          'alice--p-device123456.local',
           1,
           Uint8List.fromList([10, 1, 1, 3]),
         ),
@@ -319,7 +377,7 @@ void main() {
     client.send(conflict, InternetAddress.loopbackIPv4, service.port!);
     await Future<void>.delayed(const Duration(milliseconds: 1300));
     expect(service.ready, isTrue);
-    expect(service.host, 'alice-2.p-device123456.local');
+    expect(service.host, 'alice--p-device123456-2.local');
     expect((await query(service.host!)).answers.single.data, [10, 1, 1, 2]);
   });
 }

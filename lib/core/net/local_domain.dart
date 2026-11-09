@@ -11,18 +11,19 @@ import '../diagnostics/network_log.dart';
 import 'lan_address_guard.dart';
 import 'lan_interfaces.dart';
 
+String _cleanNickname(String username) => username
+    .trim()
+    .toLowerCase()
+    .replaceAll(RegExp(r'[\s._/\\:@?#\[\]]+'), '-')
+    .replaceAll(RegExp(r'[^a-z0-9\u0080-\uffff-]'), '')
+    .replaceAll(RegExp(r'^-+|-+$'), '');
+
+String _asciiLabel(String value) =>
+    value.runes.any((r) => r >= 128) ? 'xn--${_punycode(value)}' : value;
+
 /// An ASCII DNS label; browsers send IDNA names even for Chinese nicknames.
 String localDomainLabel(String username, String deviceId) {
-  final clean = username
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'[\s._/\\:@?#\[\]]+'), '-')
-      .replaceAll(RegExp(r'[^a-z0-9\u0080-\uffff-]'), '')
-      .replaceAll(RegExp(r'^-+|-+$'), '');
-  var label = clean;
-  if (clean.runes.any((r) => r >= 128)) {
-    label = 'xn--${_punycode(clean)}';
-  }
+  var label = _asciiLabel(_cleanNickname(username));
   final suffix = deviceId.replaceAll(RegExp('[^a-z0-9]'), '');
   if (label.isEmpty || label.length > 54) {
     label = 'user-${suffix.substring(max(0, suffix.length - 8))}';
@@ -77,12 +78,30 @@ String _punycode(String value) {
   return output.toString();
 }
 
-/// The nickname is separate from the complete, persistent device identity.
+/// Build the canonical mDNS name.
+///
+/// Use one host label so system resolvers route the name to mDNS. Encode the
+/// nickname and full identity together: appending ASCII to an existing xn--
+/// label would change its decoded name or make it invalid.
 String localDomainName(String username, String deviceId, {int conflicts = 0}) {
   final device = deviceId.toLowerCase().replaceAll('_', '-');
-  final nickname = localDomainLabel(username, deviceId);
-  final host =
-      '$nickname${conflicts == 0 ? '' : '-${conflicts + 1}'}.$device.local';
+  if (!RegExp(r'^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$').hasMatch(device) ||
+      conflicts < 0) {
+    throw const FormatException('Invalid device domain');
+  }
+  final suffix = conflicts == 0 ? '' : '-${conflicts + 1}';
+  var nickname = _cleanNickname(username);
+  if (nickname.isEmpty) nickname = 'user';
+  final runes = nickname.runes.take(54).toList();
+  String candidate() => _asciiLabel(
+    '${String.fromCharCodes(runes).replaceAll(RegExp(r'-+$'), '')}--$device$suffix',
+  );
+  var label = candidate();
+  while (label.length > 63 && runes.length > 1) {
+    runes.removeLast();
+    label = candidate();
+  }
+  final host = '$label.local';
   if (!isLocalDomain(host)) {
     throw const FormatException('Invalid device domain');
   }
@@ -347,7 +366,7 @@ class LocalDomainService {
     try {
       final nextIp = await address();
       if (_closed) return;
-      final label = localDomainLabel(username(), deviceId);
+      final label = localDomainName(username(), deviceId);
       final needsName = _label != label;
       if (needsName || nextIp != ip || !ready) {
         _repeat?.cancel();

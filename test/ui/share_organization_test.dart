@@ -69,7 +69,7 @@ void main() {
             source: source,
             organizationSource: organization,
             homeLink: () async =>
-                Uri.parse('http://alice.p-aaaaaaaaaaaaa.local:47778/'),
+                Uri.parse('http://alice--p-aaaaaaaaaaaaa.local:47778/'),
           ),
         ),
       );
@@ -97,7 +97,7 @@ void main() {
       await tester.tap(findAppTooltip('复制分组链接'));
       await tester.pumpAndSettle();
       expect(Uri.parse(copied.single).queryParameters, {'group': group});
-      expect(Uri.parse(copied.single).host, 'alice.p-aaaaaaaaaaaaa.local');
+      expect(Uri.parse(copied.single).host, 'alice--p-aaaaaaaaaaaaa.local');
       await tester.tap(findAppTooltip('分组二维码'));
       await tester.pumpAndSettle();
       expect(
