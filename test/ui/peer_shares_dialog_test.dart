@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/net/peer_share_catalog.dart';
@@ -36,6 +36,7 @@ PeerSharesDialog sharesDialog({
   Future<FileEntryPage> Function(ShareId, {ItemKey? path, String? cursor})?
   browse,
   Future<void> Function(Uri)? open,
+  Future<void> Function(ShareId, FileEntry)? record,
 }) => PeerSharesDialog(
   peer: sharesPeer,
   name: '好好吃饭',
@@ -46,6 +47,7 @@ PeerSharesDialog sharesDialog({
   homeLink: () async => Uri.parse('http://phone.local/'),
   shareLink: (id) async => Uri.parse('http://phone.local/s/${id.value}'),
   openLink: open ?? (_) async {},
+  onFileOpened: record,
 );
 
 Future<void> showShares(WidgetTester tester, PeerSharesDialog dialog) async {
@@ -65,6 +67,52 @@ Future<void> showShares(WidgetTester tester, PeerSharesDialog dialog) async {
 }
 
 void main() {
+  testWidgets('only successful file launches record external handoff', (
+    tester,
+  ) async {
+    var fail = false;
+    final recorded = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (_) async => null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await showShares(
+      tester,
+      sharesDialog(
+        open: (_) async {
+          if (fail) throw StateError('launch failed');
+        },
+        record: (share, file) async =>
+            recorded.add('${share.value}/${file.name}'),
+        browse: (_, {path, cursor}) async => const FileEntryPage(
+          entries: [
+            FileEntry(
+              itemKey: ItemKey('report.pdf'),
+              name: 'report.pdf',
+              kind: EntryKind.file,
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.text('旅行照片'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('report.pdf'));
+    await tester.pumpAndSettle();
+    expect(recorded, ['share_test/report.pdf']);
+    fail = true;
+    await tester.tap(find.text('report.pdf'));
+    await tester.pumpAndSettle();
+    expect(recorded, hasLength(1));
+    expect(find.text('打开链接失败，请重试'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('drawer keeps the custom chat avatar and folders first', (
     tester,
   ) async {

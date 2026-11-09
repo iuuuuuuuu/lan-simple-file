@@ -37,7 +37,7 @@ enum HomeTab {
   groups('群组', Icons.groups_outlined, Icons.groups),
 
   /// 传输。
-  transfers('传输', Icons.swap_vert_circle_outlined, Icons.swap_vert_circle),
+  transfers('传输记录', Icons.history_outlined, Icons.history),
 
   /// 设置。
   settings('设置', Icons.settings_outlined, Icons.settings);

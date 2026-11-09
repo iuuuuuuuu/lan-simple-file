@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lan_simple_file/app/assembly.dart';
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/shares/share_service_impl.dart';
+import 'package:lan_simple_file/core/shares/share_organization.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -18,9 +19,11 @@ void main() {
   Uri url(String path) =>
       Uri(scheme: 'http', host: '127.0.0.1', port: services.port, path: path);
 
-  Future<Map<String, dynamic>> catalog() async {
-    final response = await (await client.getUrl(url('/api/v1/shared-roots')))
-        .close();
+  Future<Map<String, dynamic>> catalog({String? group}) async {
+    final response = await (await client.getUrl(
+      url('/api/v1/shared-roots')
+          .replace(queryParameters: group == null ? null : {'group': group}),
+    )).close();
     expect(response.statusCode, 200);
     expect(response.headers.value(HttpHeaders.cacheControlHeader), 'no-store');
     return jsonDecode(await response.transform(utf8.decoder).join())
@@ -102,6 +105,75 @@ void main() {
   );
 
   test(
+    'real HTTP responses record full, partial and ZIP sends but not probes',
+    () async {
+      await services.store.upsertShare(record('history', mode: ShareMode.lan));
+      final file = url('/s/history/f/report.txt');
+      Future<HttpClientResponse> get(
+        Uri uri, {
+        String method = 'GET',
+        String? range,
+        String? etag,
+      }) async {
+        final request = await client.openUrl(method, uri);
+        if (range != null) request.headers.set(HttpHeaders.rangeHeader, range);
+        if (etag != null) {
+          request.headers.set(HttpHeaders.ifNoneMatchHeader, etag);
+        }
+        final response = await request.close();
+        await response.drain<void>();
+        return response;
+      }
+
+      expect((await get(file, method: 'HEAD')).statusCode, 200);
+      final full = await get(file);
+      expect(full.statusCode, 200);
+      expect(
+        (await get(
+          file,
+          etag: full.headers.value(HttpHeaders.etagHeader),
+        )).statusCode,
+        304,
+      );
+      expect((await get(file, range: 'bytes=2-5')).statusCode, 206);
+      expect((await get(file, range: 'bytes=9999-')).statusCode, 416);
+      expect(
+        (await get(url('/s/history/zip'), method: 'HEAD')).statusCode,
+        200,
+      );
+      expect((await get(url('/s/history/zip'))).statusCode, 200);
+      final history = services.transferHistory!;
+      for (
+        var attempt = 0;
+        attempt < 100 && (await history.list()).length < 3;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      final entries = await history.list();
+      expect(entries, hasLength(3));
+      expect(
+        entries.every((entry) => entry.direction == TransferDirection.upload),
+        isTrue,
+      );
+      final sent = entries.singleWhere(
+        (entry) => entry.status == 'sent' && !entry.archive,
+      );
+      expect(sent.name, 'report.txt');
+      expect(await File(sent.localPath!).readAsString(), 'exact-file-bytes');
+      expect(sent.bytes, 16);
+      expect(
+        entries.singleWhere((entry) => entry.status == 'partial').bytes,
+        4,
+      );
+      final zip = entries.singleWhere((entry) => entry.archive);
+      expect(zip.name, 'history.zip');
+      expect(zip.localPath, isNull);
+      expect(zip.bytes, isNull);
+    },
+  );
+
+  test(
     'only live persistent local shares are published, without private paths',
     () async {
       for (final share in [
@@ -126,10 +198,10 @@ void main() {
       }
       final payload = await catalog();
       final entries = (payload['shares'] as List).cast<Map<String, dynamic>>();
-      expect(
-        entries.map((entry) => entry['name']),
-        ['folder-token', 'file-lan'],
-      );
+      expect(entries.map((entry) => entry['name']), [
+        'folder-token',
+        'file-lan',
+      ]);
       expect(
         entries.map((entry) => entry['href']),
         containsAll(['/s/folder-token', '/s/file-lan']),
@@ -256,4 +328,52 @@ void main() {
       );
     },
   );
+
+  test('public groups preserve manual order, filter links and exclude private transfers', () async {
+    for (final share in [
+      record('folder'),
+      record('file', kind: 'file', rootUri: p.join(folder.path, 'report.txt')),
+      record('other'),
+      record('ephemeral', ephemeral: true),
+    ]) {
+      await services.store.upsertShare(share);
+    }
+    final layout = ShareOrganization(
+      names: {'work': 'Work', 'hidden': 'Private transfer'},
+      assignments: {'folder': 'work', 'file': 'work', 'ephemeral': 'hidden'},
+      order: ['file', 'folder'],
+      groupOrder: ['work', ''],
+    );
+    final source = StoreShareOrganizationSource(services.store);
+    await source.save(layout);
+    final all = await catalog();
+    expect((all['shares'] as List).map((e) => e['name']), [
+      'file',
+      'folder',
+      'other',
+    ]);
+    expect(all['groups'], [
+      {'id': 'work', 'name': 'Work'},
+      {'id': '', 'name': '未分组'},
+    ]);
+    expect(all['order'], 'owner');
+    final grouped = await catalog(group: 'work');
+    expect((grouped['shares'] as List).map((e) => e['name']), [
+      'file',
+      'folder',
+    ]);
+    expect((await catalog(group: ''))['shares'], hasLength(1));
+    await source.save(layout.copyWith(names: {'work': 'Renamed'}));
+    expect((await catalog(group: 'work'))['shares'], hasLength(2));
+    await source.save(layout.removeGroup('work'));
+    final response = await (await client.getUrl(
+      url('/api/v1/shared-roots?unused').replace(
+        path: '/api/v1/shared-roots',
+        queryParameters: {'group': 'work'},
+      ),
+    )).close();
+    expect(response.statusCode, 404);
+    await response.drain<void>();
+    expect((await catalog())['shares'], hasLength(3));
+  });
 }

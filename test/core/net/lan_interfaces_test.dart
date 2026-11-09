@@ -254,7 +254,7 @@ void main() {
       client.send(
         DnsPacket(
           id: 123,
-          questions: [DnsQuestion('xiaomi-15-pro.local', 1)],
+          questions: [DnsQuestion('xiaomi-15-pro.p-testphone.local', 1)],
         ).encode(),
         InternetAddress.loopbackIPv4,
         service.port!,

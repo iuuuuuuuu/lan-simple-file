@@ -437,6 +437,31 @@ a.catalog-entry-name:hover {
   text-align: center;
   color: var(--fg-dim);
 }
+.catalog-group-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.catalog-group-filter[hidden] { display: none; }
+.catalog-group-filter select {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+}
+.catalog-group-heading {
+  list-style: none;
+  padding: 20px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
 .catalog-page .foot {
   margin-top: 32px;
   padding-top: 14px;

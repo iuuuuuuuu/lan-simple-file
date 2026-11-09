@@ -8,7 +8,28 @@
   var THEMES = ["auto", "light", "dark"];
   var THEME_LABELS = { auto: "跟随系统", light: "明", dark: "暗" };
   var shares = [];
-  var loading = false;
+  var groups = [];
+  var requestRevision = 0;
+  var controller;
+
+  function selectedGroup() {
+    return new URL(window.location.href).searchParams.get('group');
+  }
+
+  function renderGroups() {
+    var select = document.getElementById('share-group');
+    select.textContent = '';
+    [{ id: '*', name: '全部分组' }].concat(groups).forEach(function (group) {
+      var option = document.createElement('option');
+      option.value = group.id;
+      option.textContent = group.name;
+      select.appendChild(option);
+    });
+    select.value = selectedGroup() === null ? '*' : selectedGroup();
+    document.getElementById('group-filter').hidden = groups.every(function (group) {
+      return group.id === '';
+    }) && selectedGroup() === null;
+  }
 
   function readTheme() {
     try {
@@ -47,14 +68,17 @@
     setText("status", message);
   }
 
-  function getJson(path) {
+  function getJson(path, signal) {
     return fetch(path, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
+      signal: signal,
     }).then(function (response) {
       if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+        return response.json().then(function (data) {
+          throw new Error(data.error || 'HTTP ' + response.status);
+        });
       }
       return response.json();
     });
@@ -83,7 +107,17 @@
     });
     var list = document.getElementById("shared-roots");
     list.textContent = "";
+    var lastGroup = null;
     visible.forEach(function (entry) {
+      var collection = entry.collectionId || '';
+      if (selectedGroup() === null && groups.some(function (g) { return g.id !== ''; }) && lastGroup !== collection) {
+        var group = groups.find(function (g) { return g.id === collection; });
+        var heading = document.createElement('li');
+        heading.className = 'catalog-group-heading';
+        heading.textContent = group ? group.name : '未分组';
+        list.appendChild(heading);
+        lastGroup = collection;
+      }
       var row = document.createElement("li");
       row.className = "catalog-entry";
       var folder = entry.kind === "folder";
@@ -115,28 +149,46 @@
   }
 
   function loadShares() {
-    if (loading) return;
-    loading = true;
+    var revision = ++requestRevision;
+    if (controller) controller.abort();
+    controller = new AbortController();
+    var signal = controller.signal;
+    shares = [];
+    document.getElementById('shared-roots').textContent = '';
+    document.getElementById('empty-state').hidden = true;
     var refresh = document.getElementById("refresh");
     refresh.disabled = true;
     document.getElementById("shared-roots").setAttribute("aria-busy", "true");
     setStatus("正在读取分享…");
-    Promise.all([getJson("/api/v1/ping"), getJson("/api/v1/shared-roots")])
+    var group = selectedGroup();
+    var catalogUrl = '/api/v1/shared-roots' + (group === null ? '' : '?group=' + encodeURIComponent(group));
+    Promise.all([getJson("/api/v1/ping", signal), getJson(catalogUrl, signal)])
       .then(function (results) {
+        if (revision !== requestRevision) return;
         var payload = results[1];
         renderOwner(payload.owner || results[0]);
         shares = Array.isArray(payload.shares) ? payload.shares : [];
-        shares.sort(function (a, b) {
+        groups = Array.isArray(payload.groups) ? payload.groups : [];
+        renderGroups();
+        if (payload.order !== 'owner') shares.sort(function (a, b) {
           return (b.kind === "folder") - (a.kind === "folder") ||
             String(a.name).localeCompare(String(b.name));
         });
         renderShares();
       })
       .catch(function (error) {
+        if (revision !== requestRevision) return;
         setStatus("读取分享失败：" + (error && error.message ? error.message : String(error)));
+        document.getElementById('group-filter').hidden = false;
+        var select = document.getElementById('share-group');
+        select.textContent = '';
+        var option = document.createElement('option');
+        option.value = '*'; option.textContent = '全部分组';
+        select.appendChild(option);
+        select.selectedIndex = -1;
       })
       .then(function () {
-        loading = false;
+        if (revision !== requestRevision) return;
         refresh.disabled = false;
         document.getElementById("shared-roots").removeAttribute("aria-busy");
       });
@@ -149,6 +201,14 @@
 
     document.getElementById("refresh").addEventListener("click", loadShares);
     document.getElementById("share-search").addEventListener("input", renderShares);
+    document.getElementById('share-group').addEventListener('change', function (event) {
+      var url = new URL(window.location.href);
+      if (event.target.value === '*') url.searchParams.delete('group');
+      else url.searchParams.set('group', event.target.value);
+      window.history.pushState(null, '', url);
+      loadShares();
+    });
+    window.addEventListener('popstate', loadShares);
     setText("catalog-domain", window.location.host);
     loadShares();
   }

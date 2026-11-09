@@ -28,6 +28,9 @@ import 'package:lan_simple_file/core/files/local_ref_factory.dart';
 import 'package:lan_simple_file/core/files/saf_bridge.dart';
 import 'package:lan_simple_file/core/files/saf_ref_factory.dart';
 import 'package:lan_simple_file/core/groups/group_file_history.dart' as groups;
+import 'package:lan_simple_file/core/shares/share_organization.dart';
+import 'package:lan_simple_file/core/transfer/transfer_history.dart';
+import 'package:lan_simple_file/core/server/api/share_download_observer.dart';
 import 'package:lan_simple_file/core/groups/group_service_impl.dart';
 import 'package:lan_simple_file/core/groups/http_group_transport.dart';
 import 'package:lan_simple_file/core/messaging/hlc_clock.dart';
@@ -216,10 +219,9 @@ final class AppServices {
     this.chatConnections,
     this.localDomain,
     this.localDomainChanges,
-    this.browserServer,
-    this.browserServerError,
     this.httpDiscovery,
     this.peerBrowserLinks,
+    this.transferHistory,
     this.browserLinkPolicy = const BrowserLinkPolicy(),
   });
 
@@ -241,12 +243,11 @@ final class AppServices {
   final PeerChatConnections? chatConnections;
   final LocalDomainService? localDomain;
   final StreamSubscription<void>? localDomainChanges;
-  final HttpServerHost? browserServer;
-  final String? browserServerError;
   final HttpPeerDiscovery? httpDiscovery;
   final PeerBrowserLinks? peerBrowserLinks;
+  final StoreTransferHistory? transferHistory;
   final BrowserLinkPolicy browserLinkPolicy;
-  int get browserPort => browserServer?.port ?? port;
+  int get browserPort => port;
 
   Stream<void> get profileChanges => profile is StoredProfileSource
       ? (profile as StoredProfileSource).changes
@@ -379,7 +380,6 @@ final class AppServices {
       host: host,
       port: domain == null ? port : browserPort,
       localDomain: domain?.host,
-      // The second listener serves the same routes on the default HTTP port.
     );
   }
 
@@ -487,7 +487,6 @@ final class AppServices {
   Future<void> stop() async {
     await peerBrowserLinks?.dispose();
     await httpDiscovery?.dispose();
-    await browserServer?.stop();
     await localDomainChanges?.cancel();
     await localDomain?.stop();
     sweepTimer?.cancel();
@@ -500,6 +499,7 @@ final class AppServices {
     await messaging.dispose();
     await webShare.dispose();
     await server.stop();
+    await transferHistory?.dispose();
     if (profile is StoredProfileSource) {
       await (profile as StoredProfileSource).dispose();
     }
@@ -518,7 +518,6 @@ final class AppAssembler {
     String name = '本机',
     bool enableDiscovery = true,
     bool enableLocalDomains = false,
-    int browserPort = 80,
     bool? enableWindowsClientDownload,
   }) async {
     // 1) 身份：首次启动生成，之后复用；损坏时抛错而不是静默重建。
@@ -662,7 +661,26 @@ final class AppAssembler {
       );
       registerClientDownloadRoutes(router, clientPackage.package);
     }
-    registerShareRoutes(router, shareSource, templates: assets);
+    final transferHistory = StoreTransferHistory(store);
+    Future<void> recordDownload(ShareDownloadEvent event) =>
+        transferHistory.record(
+          name: event.name,
+          direction: TransferDirection.upload,
+          status: event.status,
+          peer: identity.peerId,
+          peerLabel: event.remoteAddress,
+          share: event.share,
+          item: event.item,
+          bytes: event.bytes,
+          localPath: event.localPath,
+          archive: event.archive,
+        );
+    registerShareRoutes(
+      router,
+      shareSource,
+      templates: assets,
+      onDownload: recordDownload,
+    );
     registerShareCatalogRoutes(
       router,
       source: shareSource,
@@ -670,29 +688,15 @@ final class AppAssembler {
       owner: identity.peerId,
       nameReader: () => profile.name,
       avatarReader: () => profile.avatarHash,
+      organization: StoreShareOrganizationSource(store),
     );
     registerTreeRoutes(router, shareSource);
-    registerZipRoutes(router, shareSource);
+    registerZipRoutes(router, shareSource, onDownload: recordDownload);
     final HttpServerHost server = HttpServerHost(
       router: router,
       preferredPort: httpPortOverride ?? LanFileConstants.httpPort,
     );
     final int port = await server.start();
-    HttpServerHost? browserServer;
-    String? browserServerError;
-    if (enableLocalDomains) {
-      final candidate = HttpServerHost(
-        router: router,
-        preferredPort: browserPort,
-        fallbackSpan: 0,
-      );
-      try {
-        await candidate.start();
-        browserServer = candidate;
-      } on LanFileException {
-        browserServerError = '默认网页端口不可用，当前域名链接仍需带端口';
-      }
-    }
     final LocalDomainService? localDomain = enableLocalDomains
         ? LocalDomainService(
             username: () => profile.name,
@@ -709,8 +713,8 @@ final class AppAssembler {
             'peerId': identity.peerId.value,
             'host': localDomain?.host,
             'address': localDomain?.ip,
-            'httpPort': browserServer?.port ?? port,
-            'httpError': browserServerError,
+            'httpPort': port,
+            'httpError': null,
             'ready': localDomain?.ready ?? false,
             'error': localDomain?.error,
           }),
@@ -959,6 +963,7 @@ final class AppAssembler {
       discovery: discovery,
       shares: shareService,
       remoteFiles: remoteFiles,
+      transferHistory: transferHistory,
       offers: offerService,
       messaging: messaging,
       webShare: webShareService,
@@ -973,8 +978,6 @@ final class AppAssembler {
       chatConnections: chatConnections,
       localDomain: localDomain,
       localDomainChanges: localDomainChanges,
-      browserServer: browserServer,
-      browserServerError: browserServerError,
       httpDiscovery: httpDiscovery,
       peerBrowserLinks: peerBrowserLinks,
     );

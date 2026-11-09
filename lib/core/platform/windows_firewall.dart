@@ -116,7 +116,7 @@ Future<String?> allowWindowsLanAccess(int port) async {
       executablePath: Platform.resolvedExecutable,
       port: port,
       includeMdns: true,
-      includeBrowserPort: true,
+      includeBrowserPort: false,
     );
     // -EncodedCommand 使用 UTF-16LE，保留中文路径并避免 shell 参数插值。
     final ByteData bytes = ByteData(script.length * 2);

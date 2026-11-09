@@ -23,6 +23,7 @@ import 'package:lan_simple_file/core/contracts/contracts.dart';
 import '../response.dart';
 import '../router.dart';
 import 'share_api.dart';
+import 'share_download_observer.dart';
 import 'tree_api.dart';
 
 /// 超过这个数量的文件就不打包，改返回清单 JSON。
@@ -190,7 +191,10 @@ final class ZipEntryMeta {
 }
 
 /// `GET /s/:shareId/zip?path=`。
-Handler shareZipHandler(ShareSource source) {
+Handler shareZipHandler(
+  ShareSource source, {
+  ShareDownloadObserver? onDownload,
+}) {
   return (HttpRequest request) async {
     final ShareTarget target = await requireShare(
       source,
@@ -223,7 +227,15 @@ Handler shareZipHandler(ShareSource source) {
             '该目录下没有可打包的文件',
           );
         }
-        await _streamZip(request, target, baseKey, entries);
+        await observeShareDownload(
+          request,
+          name: '${target.displayName}.zip',
+          archive: true,
+          share: target.id,
+          item: key,
+          observer: onDownload,
+          send: () => _streamZip(request, target, baseKey, entries),
+        );
         return;
     }
   };
@@ -510,8 +522,15 @@ Uint8List zipLegacyEocd(int count, int centralSize, int centralStart) {
 }
 
 /// 把 zip 路由注册到 [router] 上。
-void registerZipRoutes(Router router, ShareSource source) {
-  router.get('/s/:shareId/zip', shareZipHandler(source));
+void registerZipRoutes(
+  Router router,
+  ShareSource source, {
+  ShareDownloadObserver? onDownload,
+}) {
+  router.get(
+    '/s/:shareId/zip',
+    shareZipHandler(source, onDownload: onDownload),
+  );
 }
 
 String _segment(Uri uri, int index) {

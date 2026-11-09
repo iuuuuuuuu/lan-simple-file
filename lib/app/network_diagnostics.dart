@@ -110,9 +110,9 @@ class NetworkDiagnostics with WidgetsBindingObserver {
       log.add('services.snapshot', {
         'httpRunning': s.server.isRunning,
         'httpPort': s.server.port,
-        'browserRunning': s.browserServer?.isRunning ?? false,
+        'browserRunning': s.server.isRunning,
         'browserPort': s.browserPort,
-        'browserFallback': s.browserServerError != null,
+        'browserFallback': false,
         'domain': domain?.host,
         'advertisedIp': domain?.ip ?? s.lanHost,
         'mdnsReady': domain?.ready,

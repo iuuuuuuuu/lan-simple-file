@@ -87,6 +87,22 @@ void main() {
       ),
     );
   });
+  test('catalog keeps owner grouping and manual ordering', () async {
+    handler = (request) async => request.response.write(jsonEncode({
+      'owner': {'name': 'Owner', 'peerId': peer.value},
+      'order': 'owner',
+      'groups': [{'id': 'work', 'name': 'Work'}],
+      'shares': [
+        {'name': 'file', 'kind': 'file', 'access': 'browse', 'href': '/s/file', 'collectionId': 'work'},
+        {'name': 'folder', 'kind': 'folder', 'access': 'browse', 'href': '/s/folder', 'collectionId': 'work'},
+      ],
+    }));
+    final result = await client.catalog();
+    expect(result.ownerOrder, isTrue);
+    expect(result.groups, {'work': 'Work'});
+    expect(result.shares.map((s) => s.name), ['file', 'folder']);
+    expect(result.shares.map((s) => s.collectionId), ['work', 'work']);
+  });
   test(
     'catalog cannot inject remote URLs or traversal into a share link',
     () async {

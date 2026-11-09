@@ -36,6 +36,9 @@ class ChatPane extends StatefulWidget {
     this.onBack,
     this.peer,
     this.onShowShares,
+    this.focusMessageId,
+    this.onClearFocus,
+    this.onSearch,
   });
   final String threadId;
   final String title;
@@ -56,6 +59,9 @@ class ChatPane extends StatefulWidget {
   final VoidCallback? onBack;
   final PeerId? peer;
   final ValueChanged<PeerId>? onShowShares;
+  final String? focusMessageId;
+  final VoidCallback? onClearFocus;
+  final VoidCallback? onSearch;
 
   @override
   State<ChatPane> createState() => _ChatPaneState();
@@ -94,7 +100,7 @@ class _ChatPaneState extends State<ChatPane> {
               widget.onRead?.call().catchError((Object _) {}) ??
                   Future<void>.value(),
             );
-            if (nearBottom) {
+            if (nearBottom && widget.focusMessageId == null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted && _scroll.hasClients) {
                   _scroll.jumpTo(_scroll.position.maxScrollExtent);
@@ -106,6 +112,22 @@ class _ChatPaneState extends State<ChatPane> {
             if (mounted) setState(() => _error = '读取消息失败：$error');
           },
         );
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusMessageId != widget.focusMessageId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scroll.hasClients) {
+          _scroll.jumpTo(
+            widget.focusMessageId == null
+                ? _scroll.position.maxScrollExtent
+                : 0,
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -335,8 +357,11 @@ class _ChatPaneState extends State<ChatPane> {
             : widget.senderAvatars[message.senderPeerId.value],
       ),
     );
-    return Padding(
+    return Container(
       key: ValueKey('chat-message-${message.id}'),
+      color: widget.focusMessageId == message.id
+          ? tokens.accent.withValues(alpha: .12)
+          : null,
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         mainAxisAlignment: mine
@@ -364,6 +389,9 @@ class _ChatPaneState extends State<ChatPane> {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<LanFileTokens>()!;
+    final focused = _messages.indexWhere(
+      (m) => m.id == widget.focusMessageId && !m.isRevoked,
+    );
     return DropShareOverlay(
       enableDragDrop: widget.enableDragDrop && widget.shareCreator != null,
       handler: CallbackDropShareHandler(_sendDroppedFiles),
@@ -418,9 +446,32 @@ class _ChatPaneState extends State<ChatPane> {
                     ],
                   ),
                 ),
+                if (widget.onSearch != null)
+                  AppIconButton(
+                    tooltip: '搜索当前聊天',
+                    onPressed: widget.onSearch,
+                    icon: const Icon(Icons.search),
+                  ),
               ],
             ),
           ),
+          if (widget.focusMessageId != null)
+            Row(
+              children: [
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    focused >= 0 ? '已定位搜索结果' : '这条消息已不可用',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                AppIconButton(
+                  tooltip: '返回最新消息',
+                  onPressed: widget.onClearFocus,
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(8),
@@ -436,6 +487,30 @@ class _ChatPaneState extends State<ChatPane> {
                       widget.messaging == null ? '聊天服务未启动' : '还没有消息，打个招呼吧',
                       style: TextStyle(color: tokens.fgDim, fontSize: 13),
                     ),
+                  )
+                : focused >= 0
+                ? CustomScrollView(
+                    controller: _scroll,
+                    center: const ValueKey('chat-focus-anchor'),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        sliver: SliverList.builder(
+                          itemCount: focused,
+                          itemBuilder: (_, index) =>
+                              _message(_messages[focused - index - 1], tokens),
+                        ),
+                      ),
+                      SliverPadding(
+                        key: const ValueKey('chat-focus-anchor'),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        sliver: SliverList.builder(
+                          itemCount: _messages.length - focused,
+                          itemBuilder: (_, index) =>
+                              _message(_messages[focused + index], tokens),
+                        ),
+                      ),
+                    ],
                   )
                 : ListView.builder(
                     controller: _scroll,

@@ -77,8 +77,22 @@ String _punycode(String value) {
   return output.toString();
 }
 
+/// The nickname is separate from the complete, persistent device identity.
+String localDomainName(String username, String deviceId, {int conflicts = 0}) {
+  final device = deviceId.toLowerCase().replaceAll('_', '-');
+  final nickname = localDomainLabel(username, deviceId);
+  final host =
+      '$nickname${conflicts == 0 ? '' : '-${conflicts + 1}'}.$device.local';
+  if (!isLocalDomain(host)) {
+    throw const FormatException('Invalid device domain');
+  }
+  return host;
+}
+
+// Accept legacy names as well as nickname.device-id.local during upgrades.
 bool isLocalDomain(String host) =>
-    RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.local$').hasMatch(host);
+    RegExp(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,2}local$')
+        .hasMatch(host);
 
 class DnsQuestion {
   const DnsQuestion(this.name, this.type, {this.unicast = false});
@@ -342,7 +356,7 @@ class LocalDomainService {
         ip = nextIp;
         _renames = needsName ? 0 : _renames;
         _label = label;
-        host = '$label${_renames == 0 ? '' : _suffix()}.local';
+        host = localDomainName(username(), deviceId, conflicts: _renames);
         _notify();
         if (ip == null) {
           error = '未连接局域网';
@@ -359,11 +373,6 @@ class LocalDomainService {
       ready = false;
       _notify();
     }
-  }
-
-  String _suffix() {
-    final id = deviceId.replaceAll(RegExp('[^a-z0-9]'), '');
-    return '-${id.substring(max(0, id.length - 6))}${_renames > 1 ? '-$_renames' : ''}';
   }
 
   Future<void> _joinInterfaces() async {
@@ -427,7 +436,7 @@ class LocalDomainService {
         if (_renames > 8) {
           throw const SocketException('局域网内有过多同名冲突，无法注册域名');
         }
-        host = '${localDomainLabel(username(), deviceId)}${_suffix()}.local';
+        host = localDomainName(username(), deviceId, conflicts: _renames);
         _notify();
         continue;
       }
@@ -532,8 +541,7 @@ class LocalDomainService {
               now.difference(_lastDefense!).inSeconds < 10) {
             ready = false;
             _renames++;
-            host =
-                '${localDomainLabel(username(), deviceId)}${_suffix()}.local';
+            host = localDomainName(username(), deviceId, conflicts: _renames);
             _notify();
             unawaited(
               _claim().catchError((Object e) {

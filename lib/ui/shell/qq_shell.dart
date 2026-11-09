@@ -25,13 +25,16 @@ import '../../app/theme/tokens.dart';
 import '../../core/contracts/contracts.dart';
 import '../../core/contacts/peer_groups.dart';
 import '../../core/messaging/messaging_service_impl.dart';
+import '../../core/messaging/chat_search.dart';
 import '../pages/groups_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/shares_page.dart';
+import '../pages/transfer_history_page.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/drop_share_overlay.dart';
 import '../widgets/share_row.dart';
 import '../widgets/chat_pane.dart';
+import '../widgets/chat_search_dialog.dart';
 import '../widgets/peer_shares_dialog.dart';
 import '../widgets/mobile_navigation.dart';
 import '../widgets/pick_share_files.dart';
@@ -73,7 +76,7 @@ final class ServiceShellSessionSource implements ShellSessionSource {
     ShellSection.nearby => '附近的人',
     ShellSection.shares => '我的分享',
     ShellSection.groups => '群聊',
-    ShellSection.transfers => '传输',
+    ShellSection.transfers => '传输记录',
     ShellSection.settings => '设置',
   };
 
@@ -224,6 +227,7 @@ class QqShell extends StatefulWidget {
     this.currentUserName,
     this.groupsSource,
     this.messaging,
+    this.chatSearchSource,
   });
 
   /// 默认展示的 section（不含设置；设置由头像/齿轮进入）。
@@ -255,6 +259,7 @@ class QqShell extends StatefulWidget {
   final String? currentUserName;
   final PeerGroupsSource? groupsSource;
   final MessagingService? messaging;
+  final ChatSearchSource? chatSearchSource;
 
   @override
   State<QqShell> createState() => _QqShellState();
@@ -266,6 +271,12 @@ class _QqShellState extends State<QqShell> {
       : widget.initialSection;
   ShellSessionSource? _source;
   String? _selectedRowId;
+  String? _focusedMessageId;
+  ChatSearchSource? get _chatSearch =>
+      widget.chatSearchSource ??
+      (widget.services == null
+          ? null
+          : StoreChatSearchSource(widget.services!.store));
   Future<List<SessionRowData>>? _rows;
   StreamSubscription<void>? _profileSubscription;
   StreamSubscription<List<PeerView>>? _peerSubscription;
@@ -699,8 +710,6 @@ class _QqShellState extends State<QqShell> {
             ? MobileNavigation(
                 selected: _section,
                 onSelect: _selectSection,
-                onUpload: _uploadFiles,
-                uploading: _uploading,
                 unread: _chatUnread,
               )
             : null,
@@ -794,6 +803,13 @@ class _QqShellState extends State<QqShell> {
                       ),
                     ),
               actions: [
+                if (_section == ShellSection.nearby && _chatSearch != null)
+                  AppIconButton(
+                    key: const ValueKey('chat-history-search-button'),
+                    tooltip: '搜索聊天记录和文件',
+                    icon: const Icon(Icons.manage_search),
+                    onPressed: _searchMessages,
+                  ),
                 if (_section == ShellSection.nearby &&
                     (_groupsSource != null || widget.services != null))
                   AppMenuButton<String>(
@@ -820,6 +836,7 @@ class _QqShellState extends State<QqShell> {
 
   void _selectSession(SessionRowData row) {
     setState(() {
+      _focusedMessageId = null;
       _selectedRowId = row.id;
       _selectedSession = row;
     });
@@ -832,6 +849,34 @@ class _QqShellState extends State<QqShell> {
             Future<void>.value(),
       );
     }
+  }
+
+  Future<void> _searchMessages({String? threadId}) async {
+    final source = _chatSearch;
+    if (source == null) return;
+    final hit = await showAppDialog<ChatSearchHit>(
+      context: context,
+      builder: (_) => ChatSearchDialog(source: source, threadId: threadId),
+    );
+    if (hit == null || !mounted) return;
+    final thread = hit.thread;
+    final id = thread.kind == 'group' ? thread.id : thread.peerId?.value;
+    if (id == null) return;
+    final row =
+        _rowData.where((row) => row.id == id).firstOrNull ??
+        SessionRowData(
+          id: id,
+          title: thread.title,
+          avatarSeed: thread.peerId?.value ?? thread.groupId ?? id,
+          subtitle: '',
+          isGroup: thread.kind == 'group',
+          peerId: thread.peerId?.value,
+        );
+    _selectSession(row);
+    setState(() {
+      _section = ShellSection.nearby;
+      _focusedMessageId = hit.message.id;
+    });
   }
 
   Future<ShareId?> _pickShare() async {
@@ -871,6 +916,18 @@ class _QqShellState extends State<QqShell> {
           browse: client.browse,
           homeLink: () => services.buildPeerWebHomeLink(peer),
           shareLink: (share) => services.buildPeerWebLink(peer, share),
+          onFileOpened: (share, file) async {
+            await services.transferHistory?.record(
+              name: file.name,
+              direction: TransferDirection.download,
+              status: 'external',
+              peer: peer,
+              peerLabel: name,
+              share: share,
+              item: file.itemKey,
+              bytes: file.size,
+            );
+          },
           openLink: (uri) async {
             if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
               throw const LanFileException(
@@ -921,6 +978,11 @@ class _QqShellState extends State<QqShell> {
           onUpload: widget.services == null ? null : _uploadFiles,
           key: ValueKey('chat-$threadId'),
           threadId: threadId,
+          focusMessageId: _focusedMessageId,
+          onClearFocus: () => setState(() => _focusedMessageId = null),
+          onSearch: _chatSearch == null
+              ? null
+              : () => _searchMessages(threadId: threadId),
           title: row.title,
           self: self,
           avatarSeed: row.avatarSeed,
@@ -952,13 +1014,11 @@ class _QqShellState extends State<QqShell> {
         return SharesPage(
           services: widget.services,
           refreshRevision: _sharesRevision,
+          onCreateShare: widget.services == null ? null : _uploadFiles,
+          creating: _uploading,
         );
       case ShellSection.transfers:
-        return const _PlaceholderContent(
-          icon: Icons.swap_vert_circle_outlined,
-          title: '传输',
-          body: '传输面板由 M2 提供：进度、速度、暂停与续传。',
-        );
+        return TransferHistoryPage(services: widget.services);
       case ShellSection.settings:
         // services 为 null 时也渲染真实设置页：页内自己会显示「未连接服务」，
         // 但「关于」等静态内容照常可见——换成占位会让用户在未连服务时

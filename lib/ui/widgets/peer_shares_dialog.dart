@@ -20,6 +20,7 @@ class PeerSharesDialog extends StatefulWidget {
     required this.shareLink,
     required this.openLink,
     this.avatarBytes,
+    this.onFileOpened,
   });
 
   final PeerId peer;
@@ -31,6 +32,7 @@ class PeerSharesDialog extends StatefulWidget {
   final Future<Uri> Function() homeLink;
   final Future<Uri> Function(ShareId) shareLink;
   final Future<void> Function(Uri) openLink;
+  final Future<void> Function(ShareId, FileEntry)? onFileOpened;
 
   @override
   State<PeerSharesDialog> createState() => _PeerSharesDialogState();
@@ -44,6 +46,7 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
   String? _cursor;
   String? _error;
   String _query = '';
+  String? _collection;
   bool _loading = true;
   bool _copying = false;
   int _revision = 0;
@@ -68,7 +71,12 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
       if (_share == null) {
         final catalog = await widget.loadCatalog();
         if (!mounted || revision != _revision) return;
-        setState(() => _catalog = catalog);
+        setState(() {
+          _catalog = catalog;
+          if (_collection != null && !catalog.groups.containsKey(_collection)) {
+            _collection = null;
+          }
+        });
       } else {
         final page = await widget.browse(
           _share!.id!,
@@ -116,6 +124,11 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
       var link = share == null
           ? await widget.homeLink()
           : await widget.shareLink(share.id!);
+      if (share == null && _collection != null) {
+        link = link.replace(
+          queryParameters: {...link.queryParameters, 'group': _collection!},
+        );
+      }
       if (file != null) {
         link = link.replace(
           pathSegments: [
@@ -133,6 +146,15 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
         }
       } else {
         await widget.openLink(link);
+        if (file != null) {
+          try {
+            await widget.onFileOpened?.call(share!.id!, file);
+          } on Object {
+            if (mounted) {
+              AppToast.show(context, '文件已打开，但保存传输记录失败', isError: true);
+            }
+          }
+        }
       }
     } on Object catch (error) {
       if (mounted) {
@@ -155,17 +177,22 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final shares =
-        (_catalog?.shares ?? const <PeerShareEntry>[])
-            .where((s) => s.name.toLowerCase().contains(_query.toLowerCase()))
-            .toList()
-          ..sort(
-            (a, b) => a.isDirectory == b.isDirectory
-                ? a.name.compareTo(b.name)
-                : a.isDirectory
-                ? -1
-                : 1,
-          );
+    final shares = (_catalog?.shares ?? const <PeerShareEntry>[])
+        .where(
+          (s) =>
+              s.name.toLowerCase().contains(_query.toLowerCase()) &&
+              (_collection == null || s.collectionId == _collection),
+        )
+        .toList();
+    if (_catalog?.ownerOrder != true) {
+      shares.sort(
+        (a, b) => a.isDirectory == b.isDirectory
+            ? a.name.compareTo(b.name)
+            : a.isDirectory
+            ? -1
+            : 1,
+      );
+    }
     return PopScope(
       canPop: _share == null,
       onPopInvokedWithResult: (didPop, _) {
@@ -243,6 +270,32 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
               ],
             ),
             if (_share == null)
+              if (_catalog?.groups.isNotEmpty == true)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _collection == null
+                            ? '全部分组'
+                            : _catalog!.groups[_collection]!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    AppMenuButton<String>(
+                      tooltip: '筛选对方分享分组',
+                      icon: const Icon(Icons.filter_list),
+                      itemBuilder: (_) => [
+                        const AppMenuItem(value: '*', label: '全部分组'),
+                        for (final group in _catalog!.groups.entries)
+                          AppMenuItem(value: group.key, label: group.value),
+                      ],
+                      onSelected: (id) =>
+                          setState(() => _collection = id == '*' ? null : id),
+                    ),
+                  ],
+                ),
+            if (_share == null)
               AppTextField(
                 key: const ValueKey('peer-shares-search'),
                 label: '搜索分享',
@@ -301,8 +354,8 @@ class _PeerSharesDialogState extends State<PeerSharesDialog> {
                     share.id == null
                         ? _accessLabel(share.access)
                         : share.isDirectory
-                        ? '文件夹'
-                        : '文件',
+                        ? '${_catalog?.groups[share.collectionId] ?? '未分组'} · 文件夹'
+                        : '${_catalog?.groups[share.collectionId] ?? '未分组'} · 文件',
                   ),
                   trailing: Icon(
                     share.id == null ? Icons.lock_outline : Icons.chevron_right,

@@ -12,10 +12,12 @@ import 'dart:typed_data';
 
 import 'package:lan_simple_file/core/contracts/contracts.dart';
 import 'package:lan_simple_file/core/files/relative_path_codec.dart';
+import 'package:lan_simple_file/core/files/local_ref.dart';
 
 import '../response.dart';
 import '../router.dart';
 import '../static/static_handler.dart';
+import 'share_download_observer.dart';
 
 /// 单段原始路径（百分号编码后）的长度上限。
 const int kMaxEncodedPathLength = 4096;
@@ -272,7 +274,10 @@ String rawZipTail(Uri uri) => rawFileTail(uri);
 
 /// `GET /s/:shareId/f/*`：单文件流，Range / ETag / HEAD 全部交给
 /// [fileRangeResponse]。
-Handler shareFileHandler(ShareSource source) {
+Handler shareFileHandler(
+  ShareSource source, {
+  ShareDownloadObserver? onDownload,
+}) {
   return (HttpRequest request) async {
     final String shareId = _segment(request.uri, 2);
     final ({ShareTarget target, ItemKey key}) resolved = await resolveSharePath(
@@ -293,7 +298,15 @@ Handler shareFileHandler(ShareSource source) {
         '文件已失效或已被移走: ${ref.displayName}',
       );
     }
-    await fileRangeResponse(request.response, ref, request);
+    await observeShareDownload(
+      request,
+      name: ref.displayName,
+      share: resolved.target.id,
+      item: resolved.key,
+      localPath: ref is LocalRef ? ref.absolutePath : null,
+      observer: onDownload,
+      send: () => fileRangeResponse(request.response, ref, request),
+    );
   };
 }
 
@@ -344,9 +357,13 @@ void registerShareRoutes(
   Router router,
   ShareSource source, {
   required StaticAssetSource templates,
+  ShareDownloadObserver? onDownload,
 }) {
   router.get('/s/:shareId', sharePageHandler(source, templates));
-  router.get('/s/:shareId/f/*', shareFileHandler(source));
+  router.get(
+    '/s/:shareId/f/*',
+    shareFileHandler(source, onDownload: onDownload),
+  );
 }
 
 String _segment(Uri uri, int index) {

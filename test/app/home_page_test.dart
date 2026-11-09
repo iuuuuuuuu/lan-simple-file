@@ -45,14 +45,14 @@ Future<ProviderContainer> _pumpApp(
 
 void main() {
   group('外壳骨架', () {
-    testWidgets('五个一级入口仍在（枚举未退化）', (WidgetTester tester) async {
+    testWidgets('保留旧群组路由枚举，传输入口改为记录', (WidgetTester tester) async {
       await _pumpApp(tester);
       expect(HomeTab.values, hasLength(5));
       expect(HomeTab.values.map((HomeTab t) => t.label).toList(), <String>[
         '附近',
         '我的分享',
         '群组',
-        '传输',
+        '传输记录',
         '设置',
       ]);
       // 外壳已改为三栏：最窄图标栏 + 会话列表 + 内容区，用 Key 断言结构存在。
@@ -85,12 +85,15 @@ void main() {
       expect(find.byKey(const ValueKey('mobile-navigation')), findsOneWidget);
     });
 
-    testWidgets('点图标栏切到「传输」并显示该 section 的标题', (WidgetTester tester) async {
+    testWidgets('点图标栏进入可搜索的传输记录页', (WidgetTester tester) async {
       await _pumpApp(tester, size: const Size(1280, 800));
       await tester.tap(find.byKey(const ValueKey<String>('rail-transfers')));
       await tester.pumpAndSettle();
-      // 传输仍是占位（M2 面板未接），但必须能切过去且标题正确。
-      expect(find.text('传输'), findsWidgets);
+      expect(find.text('传输记录'), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('transfer-history-search')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('点本机头像进入设置页，设置页有许可声明', (WidgetTester tester) async {

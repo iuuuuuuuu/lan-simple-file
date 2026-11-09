@@ -742,8 +742,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 label: '本机局域网域名',
                                 value: domain.host ?? '正在注册',
                                 subtitle: domain.ready
-                                    ? widget.services!.browserServerError ??
-                                          '用户名自动绑定本机 · 点击复制访问地址'
+                                    ? '昵称与设备 ID 绑定本机 · 点击复制访问地址'
                                     : domain.error ?? '正在检查域名是否重名',
                                 onTap: domain.ready
                                     ? () => Clipboard.setData(

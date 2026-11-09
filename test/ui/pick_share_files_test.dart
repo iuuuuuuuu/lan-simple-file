@@ -141,8 +141,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mobile-nav-shares')));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
     final open = tester
-        .widget<AppIconButton>(find.byKey(const ValueKey('mobile-upload')))
+        .widget<MiuixFloatingActionButton>(
+          find.byKey(const ValueKey('share-create-fab')),
+        )
         .onPressed!;
     open();
     open();
@@ -241,9 +248,15 @@ void main() {
       if (size.width >= 600) {
         await tester.tap(find.text('本机测试会话'));
         await tester.pumpAndSettle();
+      } else {
+        await tester.tap(find.byKey(const ValueKey('mobile-nav-shares')));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pumpAndSettle();
       }
       final add = size.width < 600
-          ? find.byKey(const ValueKey('mobile-upload'))
+          ? find.byKey(const ValueKey('share-create-fab'))
           : find.byKey(const ValueKey('chat-upload'));
       await tester.tap(add);
       await tester.pumpAndSettle();

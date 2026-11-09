@@ -120,7 +120,7 @@ Future<WindowsBrowserProxy?> ensureWindowsBrowserProxyBypass(
 
 const _addProxyBypassCommand = r'''
 $domain = $env:LAN_SIMPLE_FILE_LOCAL_DOMAIN
-if ($domain -cnotmatch '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.local$') {
+if ($domain -cnotmatch '^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,2}local$') {
     throw 'Only a valid LAN domain can bypass the proxy.'
 }
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'

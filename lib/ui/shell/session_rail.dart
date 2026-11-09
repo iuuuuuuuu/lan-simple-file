@@ -13,7 +13,7 @@ enum ShellSection {
   nearby('附近的人', Icons.chat_bubble_outline, Icons.chat_bubble),
   groups('群聊', Icons.groups_outlined, Icons.groups),
   shares('我的分享', Icons.folder_outlined, Icons.folder),
-  transfers('传输', Icons.swap_vert_circle_outlined, Icons.swap_vert_circle),
+  transfers('传输记录', Icons.history_outlined, Icons.history),
   settings('设置', Icons.settings_outlined, Icons.settings);
 
   const ShellSection(this.label, this.icon, this.selectedIcon);

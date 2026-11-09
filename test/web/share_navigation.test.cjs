@@ -12,6 +12,7 @@ const nested = folder + '/二级';
 let browser, server, origin;
 let delayFolder = false;
 let folderRequested;
+let groupedCatalog = false;
 const entry = (key, isDir) => ({ key, name: key.split('/').at(-1), isDir, size: 12 });
 
 before(async () => {
@@ -35,6 +36,18 @@ before(async () => {
       res.end(JSON.stringify(data));
     }
     if (url.pathname === '/api/v1/ping') return json({ name: '好好吃饭' });
+    if (url.pathname === '/api/v1/shared-roots' && groupedCatalog) {
+      const group = url.searchParams.get('group');
+      if (group !== null && !['work', 'photos', ''].includes(group)) return json({ error: '分享分组不存在或已删除' }, 404);
+      const shares = [
+        { name: 'b.txt', kind: 'file', access: 'browse', href: '/s/test', collectionId: 'work' },
+        { name: 'z-folder', kind: 'folder', access: 'browse', href: '/s/test', collectionId: 'work' },
+        { name: 'a.txt', kind: 'file', access: 'browse', href: '/s/test', collectionId: 'photos' },
+      ];
+      return json({ owner: { name: '好好吃饭' }, order: 'owner', groups: [
+        { id: 'work', name: '工作资料' }, { id: 'photos', name: '<script>照片</script>' },
+      ], shares: group === null ? shares : shares.filter(s => s.collectionId === group) });
+    }
     if (url.pathname === '/api/v1/shared-roots') return json({ owner: { name: '好好吃饭' }, shares: [
       { name: 'a.txt', kind: 'file', access: 'browse', href: '/s/test' },
       { name: 'z-folder', kind: 'folder', access: 'browse', href: '/s/test' },
@@ -81,6 +94,40 @@ async function ready(page, names) {
     const actual = Array.from(document.querySelectorAll('#entries .entry-name'), x => x.textContent);
     return JSON.stringify(actual) === JSON.stringify(expected) && document.querySelector('#status').textContent.startsWith('已列出');
   }, names);
+}
+
+for (const [name, viewport] of Object.entries({ mobile: { width: 390, height: 844 }, desktop: { width: 1280, height: 800 } })) {
+  test(`${name}: share groups preserve owner order, deep links and browser history`, async () => {
+    groupedCatalog = true;
+    const page = await browser.newPage({ viewport });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+      await page.goto(origin + '/');
+      await page.waitForSelector('.catalog-entry');
+      assert.deepEqual(await page.locator('.catalog-entry-name').allTextContents(), ['b.txt', 'z-folder', 'a.txt']);
+      assert.deepEqual(await page.locator('.catalog-group-heading').allTextContents(), ['工作资料', '<script>照片</script>']);
+      await page.selectOption('#share-group', 'work');
+      await page.waitForFunction(() => document.querySelectorAll('.catalog-entry').length === 2);
+      assert.equal(new URL(page.url()).searchParams.get('group'), 'work');
+      await page.reload();
+      await page.waitForSelector('.catalog-entry');
+      assert.deepEqual(await page.locator('.catalog-entry-name').allTextContents(), ['b.txt', 'z-folder']);
+      await page.selectOption('#share-group', 'photos');
+      await page.waitForFunction(() => document.querySelectorAll('.catalog-entry').length === 1);
+      await page.goBack();
+      await page.waitForFunction(() => document.querySelectorAll('.catalog-entry').length === 2);
+      assert.equal(await page.locator('#share-group').inputValue(), 'work');
+      await page.screenshot({ path: path.join(root, `build/web-regression/groups-${name}.png`), fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.goto(origin + '/?group=deleted');
+      await page.waitForFunction(() => document.querySelector('#status').textContent.includes('分组不存在'));
+      assert.equal(await page.locator('.catalog-entry').count(), 0);
+      await page.selectOption('#share-group', '*');
+      await page.waitForFunction(() => document.querySelectorAll('.catalog-entry').length === 3);
+      assert.deepEqual(errors, []);
+    } finally { groupedCatalog = false; await page.close(); }
+  });
 }
 
 for (const [name, viewport] of Object.entries({ mobile: { width: 390, height: 844 }, desktop: { width: 1280, height: 800 } })) {

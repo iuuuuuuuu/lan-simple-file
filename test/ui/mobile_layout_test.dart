@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:lan_simple_file/core/files/imported_files.dart';
 import 'package:lan_simple_file/ui/shell/qq_shell.dart';
+import 'package:lan_simple_file/ui/widgets/app_controls.dart';
+import 'package:lan_simple_file/ui/pages/shares_page.dart';
+
+import 'support/ui_fakes.dart' show FakeMySharesSource;
 
 import 'qq_shell_test.dart' show wrapShell, setViewport;
 
@@ -15,6 +19,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('shell-rail')), findsNothing);
     expect(find.byKey(const ValueKey('mobile-navigation')), findsOneWidget);
+    expect(find.byType(MiuixFloatingNavigationBar), findsOneWidget);
+    expect(find.byType(MiuixFloatingNavigationBarItem), findsNWidgets(4));
+    expect(find.byKey(const ValueKey('mobile-upload')), findsNothing);
     expect(tester.getRect(find.byKey(const ValueKey('shell-list'))).width, 390);
     expect(
       tester.getRect(find.byKey(const ValueKey('mobile-navigation'))).top,
@@ -23,6 +30,41 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mobile-nav-settings')));
     await tester.pumpAndSettle();
     expect(find.text('本机信息'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('mobile-nav-transfers')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('transfer-history-search')),
+      findsOneWidget,
+    );
+  });
+  testWidgets('share creation uses a Miuix button at the bottom right', (
+    tester,
+  ) async {
+    await setViewport(tester, const Size(390, 700));
+    var pressed = 0;
+    await tester.pumpWidget(
+      wrapShell(
+        AppScaffold(
+          body: SharesPage(
+            source: FakeMySharesSource(),
+            onCreateShare: () async {
+              pressed++;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final button = find.byKey(const ValueKey('share-create-fab'));
+    expect(find.byType(MiuixFloatingActionButton), findsOneWidget);
+    final bounds = tester.getRect(button);
+    expect(bounds.right, lessThanOrEqualTo(390));
+    expect(bounds.left, greaterThan(290));
+    expect(bounds.top, greaterThan(580));
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(pressed, 1);
     expect(tester.takeException(), isNull);
   });
   test('上传文件使用流保存、清理失败临时文件，文件名不能逃逸应用目录', () async {

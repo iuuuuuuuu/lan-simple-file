@@ -8,6 +8,21 @@ import 'package:lan_simple_file/core/net/lan_address.dart';
 import 'package:lan_simple_file/core/platform/browser_link_policy.dart';
 
 void main() {
+  test('nested device domains are repaired without widening proxy bypass', () async {
+    const domain = 'alice.p-aaaaaaaaaaaaa.local';
+    final repaired = <String>[];
+    final policy = BrowserLinkPolicy(
+      proxyQuery: () async => const WindowsBrowserProxy(enabled: true, server: '127.0.0.1:7890', bypass: '<local>'),
+      proxyRepair: (host) async {
+        repaired.add(host);
+        return WindowsBrowserProxy(enabled: true, server: '127.0.0.1:7890', bypass: '<local>;$host');
+      },
+    );
+    expect(await policy.domainFor(domain), domain);
+    expect(repaired, [domain]);
+    expect(await policy.domainFor('$domain.example'), isNull);
+    expect(repaired, [domain]);
+  });
   test('local 绕过只匹配无点主机，不能误认为包含 mDNS 域名', () {
     const proxy = WindowsBrowserProxy(
       enabled: true,

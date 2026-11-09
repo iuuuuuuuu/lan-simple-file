@@ -13,18 +13,27 @@ final class PeerShareEntry {
     required this.isDirectory,
     required this.access,
     this.id,
+    this.collectionId = '',
   });
 
   final String name;
   final bool isDirectory;
   final String access;
   final ShareId? id;
+  final String collectionId;
 }
 
 final class PeerShareCatalog {
-  const PeerShareCatalog({required this.name, required this.shares});
+  const PeerShareCatalog({
+    required this.name,
+    required this.shares,
+    this.groups = const {},
+    this.ownerOrder = false,
+  });
   final String name;
   final List<PeerShareEntry> shares;
+  final Map<String, String> groups;
+  final bool ownerOrder;
 }
 
 /// Uses the same public catalog and access controls as the peer's home page.
@@ -72,12 +81,18 @@ final class PeerShareClient {
           isDirectory: row['kind'] == 'folder',
           access: row['access'] as String,
           id: id,
+          collectionId: row['collectionId'] as String? ?? '',
         ),
       );
     }
     return PeerShareCatalog(
       name: data['owner']['name'] as String,
       shares: shares,
+      groups: {
+        for (final group in data['groups'] as List? ?? [])
+          (group as Map)['id'] as String: group['name'] as String,
+      },
+      ownerOrder: data['order'] == 'owner',
     );
   }
 
