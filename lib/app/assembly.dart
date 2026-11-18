@@ -20,7 +20,6 @@ import 'package:lan_simple_file/core/discovery/discovery_service_impl.dart';
 import 'package:lan_simple_file/core/discovery/http_peer_discovery.dart';
 import 'package:lan_simple_file/core/discovery/peer_activity_tracker.dart';
 import 'package:lan_simple_file/core/discovery/peer_key_bootstrap.dart';
-import 'package:lan_simple_file/core/platform/browser_link_policy.dart';
 import 'package:lan_simple_file/core/platform/peer_browser_links.dart';
 import 'package:lan_simple_file/core/net/peer_local_domain.dart';
 import 'package:lan_simple_file/core/net/peer_share_catalog.dart';
@@ -222,7 +221,6 @@ final class AppServices {
     this.httpDiscovery,
     this.peerBrowserLinks,
     this.transferHistory,
-    this.browserLinkPolicy = const BrowserLinkPolicy(),
   });
 
   final DeviceIdentity identity;
@@ -246,7 +244,6 @@ final class AppServices {
   final HttpPeerDiscovery? httpDiscovery;
   final PeerBrowserLinks? peerBrowserLinks;
   final StoreTransferHistory? transferHistory;
-  final BrowserLinkPolicy browserLinkPolicy;
   int get browserPort => port;
 
   Stream<void> get profileChanges => profile is StoredProfileSource
@@ -360,27 +357,16 @@ final class AppServices {
 
   Future<Uri> buildWebHomeLink() async {
     final domain = localDomain;
-    // The sender's proxy must not rewrite the address shared with recipients.
-    // Keep attempting the local bypass repair without changing the owned domain.
-    await browserLinkPolicy.domainFor(domain?.host);
-    if (domain != null && !domain.ready) {
-      throw LanFileException(
-        LanFileErrorCode.providerOffline,
-        domain.error ?? '正在注册本机局域网域名，请稍后重试',
-      );
-    }
-    final String? host = domain?.ip ?? lanHost;
+    final String? host = domain == null
+        ? lanHost
+        : domain.ip ?? await pickLanAddress();
     if (host == null || host.isEmpty) {
       throw const LanFileException(
         LanFileErrorCode.providerOffline,
         '没有检测到局域网地址（可能未连网或只有回环网卡），无法生成网页链接',
       );
     }
-    return buildWebHomeUrl(
-      host: host,
-      port: domain == null ? port : browserPort,
-      localDomain: domain?.host,
-    );
+    return buildWebHomeUrl(host: host, port: browserPort);
   }
 
   Future<Uri> buildPeerWebLink(PeerId owner, ShareId share) async {
@@ -392,12 +378,10 @@ final class AppServices {
         '文件提供者已离线',
       );
     }
-    final domain = await fetchPeerLocalDomain(owner, endpoint);
     return buildWebShareUrl(
       host: endpoint.host,
-      port: domain?.port ?? endpoint.port,
+      port: endpoint.port,
       shareId: share,
-      localDomain: await browserLinkPolicy.domainFor(domain?.host),
     );
   }
 
@@ -414,16 +398,7 @@ final class AppServices {
     if (endpoint == null) {
       throw const LanFileException(LanFileErrorCode.providerOffline, '对方已离线');
     }
-    final domain = await fetchPeerLocalDomain(
-      peer,
-      endpoint,
-      requireIdentity: true,
-    );
-    return buildWebHomeUrl(
-      host: endpoint.host,
-      port: domain?.port ?? endpoint.port,
-      localDomain: await browserLinkPolicy.domainFor(domain?.host),
-    );
+    return buildWebHomeUrl(host: endpoint.host, port: endpoint.port);
   }
 
   /// 改名：一次写三处，缺一处就会「本地改了、别人看到的还是旧名」。

@@ -817,11 +817,7 @@ class _SharesPageState extends State<SharesPage> {
                                           (snapshot.connectionState ==
                                                   ConnectionState.waiting
                                               ? '正在获取分享地址'
-                                              : widget
-                                                        .services
-                                                        ?.localDomain
-                                                        ?.error ??
-                                                    '局域网地址不可用'),
+                                              : '局域网地址不可用'),
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: uri == null
@@ -1016,9 +1012,10 @@ class _SharesPageState extends State<SharesPage> {
                                   final bool expanded =
                                       _expandedId == share.id.value;
                                   return _ShareCard(
-                                    key: ValueKey(
-                                      '${share.id.value}:${widget.services?.localDomain?.host ?? ''}:${widget.services?.localDomain?.ready ?? true}',
-                                    ),
+                                    key: ValueKey((
+                                      share.id,
+                                      widget.services?.localDomain?.ip,
+                                    )),
                                     share: share,
                                     status: status,
                                     expanded: expanded,
